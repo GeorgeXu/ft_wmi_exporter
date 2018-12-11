@@ -10,7 +10,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"wmi_exporter/cloudcare"
-	"wmi_exporter/collector"
 
 	"github.com/prometheus/common/model"
 )
@@ -142,17 +141,17 @@ func initPromCfg(c *Config) error {
 		cloudcare.CorsairCloudAssetID = c.CloudAssetID
 	}
 
-	if c.EnableAll == 1 {
-		// 开启所有收集器
-		for k, _ := range c.Collectors {
-			collector.SetCollector(k, true)
-		}
-	} else {
-		// 将配置中的开关设置到 collector 模块中
-		for k, v := range c.Collectors {
-			collector.SetCollector(k, v)
-		}
-	}
+	// if c.EnableAll == 1 {
+	// 	// 开启所有收集器
+	// 	for k, _ := range c.Collectors {
+	// 		collector.SetCollector(k, true)
+	// 	}
+	// } else {
+	// 	// 将配置中的开关设置到 collector 模块中
+	// 	for k, v := range c.Collectors {
+	// 		collector.SetCollector(k, v)
+	// 	}
+	// }
 
 	cloudcare.PromCfg.GlobalConfig.ScrapeInterval =
 		model.Duration(c.ScrapeInterval) * model.Duration(time.Second)

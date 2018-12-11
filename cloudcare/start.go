@@ -76,7 +76,7 @@ func Start(remotehost string, scrapehost string) error {
 
 	var l promlog.AllowedLevel
 	l.Set("info")
-	logger := promlog.New(l)
+	logger := promlog.New(&promlog.Config{Level: &l})
 
 	chStop = make(chan struct{})
 

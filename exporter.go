@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -13,7 +14,10 @@ import (
 
 	"golang.org/x/sys/windows/svc"
 
+	"wmi_exporter/cfg"
+	"wmi_exporter/cloudcare"
 	"wmi_exporter/collector"
+	"wmi_exporter/git"
 
 	"github.com/StackExchange/wmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -176,6 +180,72 @@ func initWbem() {
 	wmi.DefaultClient.SWbemServicesClient = s
 }
 
+var (
+	flagSingleMode          = kingpin.Flag("single-mode", "run as single node").Default("0").Int()
+	flagInit                = kingpin.Flag("init", `init collector`).Bool()
+	flagUpgrade             = kingpin.Flag("upgrade", ``).Bool()
+	flagHost                = kingpin.Flag("host", `eg. ip addr`).String()
+	flagRemoteHost          = kingpin.Flag("remote-host", `data bridge addr`).Default("http://kodo.cloudcare.com/v1/write").String()
+	flagScrapeInterval      = kingpin.Flag("scrape-interval", "frequency to upload data").Default("15").Int()
+	flagTeamID              = kingpin.Flag("team-id", "User ID").String()
+	flagCloudAssetID        = kingpin.Flag("cloud-asset-id", "cloud instance ID").String()
+	flagAK                  = kingpin.Flag("ak", `Access Key`).String()
+	flagSK                  = kingpin.Flag("sk", `Secret Key`).String()
+	flagPort                = kingpin.Flag("port", `web listen port`).Default("9100").Int()
+	flagCfgFile             = kingpin.Flag("cfg", `configure file`).Default("cfg.yml").String()
+	flagVersionInfo         = kingpin.Flag("version", "show version info").Bool()
+	flagEnableAllCollectors = kingpin.Flag("enable-all", "enable all collectors").Default("0").Int()
+)
+
+func initCfg() error {
+	cfg.Cfg.SingleMode = *flagSingleMode
+
+	if *flagHost != "" {
+		cfg.Cfg.Host = *flagHost
+	}
+
+	cfg.Cfg.RemoteHost = *flagRemoteHost
+	cfg.Cfg.ScrapeInterval = *flagScrapeInterval
+	cfg.Cfg.EnableAll = *flagEnableAllCollectors
+
+	// unique-id 为必填参数
+	if *flagTeamID == "" {
+		log.Fatal("invalid unique-id")
+	} else {
+		cfg.Cfg.TeamID = *flagTeamID
+	}
+
+	if *flagCloudAssetID == "" {
+		log.Fatal("invalid cloud assert id")
+	} else {
+		cfg.Cfg.CloudAssetID = *flagCloudAssetID
+	}
+
+	if *flagAK == "" {
+		log.Fatal("invalid ak")
+	} else {
+		cfg.Cfg.AK = *flagAK
+	}
+
+	if *flagSK == "" {
+		log.Fatal("invalid sk")
+	} else {
+		cfg.Cfg.SK = cfg.XorEncode(*flagSK)
+	}
+
+	cfg.Cfg.Port = *flagPort
+
+	//cfg.Cfg.Collectors = collector.ListAllCollectors()
+
+	if cfg.Cfg.EnableAll == 1 {
+		for k, _ := range cfg.Cfg.Collectors {
+			cfg.Cfg.Collectors[k] = true
+		}
+	}
+
+	return cfg.DumpConfig(*flagCfgFile)
+}
+
 func main() {
 	var (
 		listenAddress = kingpin.Flag(
@@ -201,6 +271,23 @@ func main() {
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
 
+	if *flagVersionInfo {
+		fmt.Printf(`Version:        %s
+Sha1:           %s
+Build At:       %s
+Golang Version: %s
+`, git.Version, git.Sha1, git.BuildAt, git.Golang)
+		return
+	}
+
+	if *flagInit {
+		_ = initCfg()
+		return
+	} else if *flagUpgrade {
+		// TODO
+		return
+	}
+
 	if *printCollectors {
 		collectorNames := make(sort.StringSlice, 0, len(collector.Factories))
 		for n := range collector.Factories {
@@ -212,6 +299,21 @@ func main() {
 			fmt.Printf(" - %s\n", n)
 		}
 		return
+	}
+
+	cfg.LoadConfig(*flagCfgFile)
+	cfg.DumpConfig(*flagCfgFile) // load 过程中可能会修改 cfg.Cfg, 需重新写入
+
+	if cfg.Cfg.SingleMode == 1 {
+		var scu *url.URL
+
+		if err := cloudcare.Start(cfg.Cfg.RemoteHost, ""); err != nil {
+			panic(err)
+		}
+		if scu != nil {
+			time.Sleep(60 * 60 * time.Second)
+			return
+		}
 	}
 
 	initWbem()
