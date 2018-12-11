@@ -13,13 +13,14 @@ import (
 
 	"golang.org/x/sys/windows/svc"
 
+	"wmi_exporter/collector"
+
 	"github.com/StackExchange/wmi"
-	"github.com/martinlindhe/wmi_exporter/collector"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 // WmiCollector implements the prometheus.Collector interface.
