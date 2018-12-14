@@ -7,6 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -91,6 +94,27 @@ func (coll WmiCollector) Collect(ch chan<- prometheus.Metric) {
 	wg.Wait()
 }
 
+func listAllCollectors() map[string]bool {
+	m := make(map[string]bool)
+	defs := strings.Split(defaultCollectors, ",")
+	bhave := false
+	for k, _ := range collector.Factories {
+		if cfg.Cfg.EnableAll > 0 {
+			m[k] = true
+		} else {
+			bhave = false
+			for _, v := range defs {
+				if v == k {
+					bhave = true
+					break
+				}
+			}
+			m[k] = bhave
+		}
+	}
+	return m
+}
+
 func filterAvailableCollectors(collectors string) string {
 	var availableCollectors []string
 	for _, c := range strings.Split(collectors, ",") {
@@ -129,6 +153,23 @@ func execute(name string, c collector.Collector, ch chan<- prometheus.Metric) {
 	)
 }
 
+func loadEnableCollectors() []string {
+	var result []string
+	if cfg.Cfg.EnableAll > 0 {
+		for k, _ := range collector.Factories {
+			result = append(result, k)
+		}
+	} else {
+		for k, v := range cfg.Cfg.Collectors {
+			if v {
+				result = append(result, k)
+			}
+		}
+	}
+
+	return result
+}
+
 func expandEnabledCollectors(enabled string) []string {
 	expanded := strings.Replace(enabled, defaultCollectorsPlaceholder, defaultCollectors, -1)
 	separated := strings.Split(expanded, ",")
@@ -145,11 +186,11 @@ func expandEnabledCollectors(enabled string) []string {
 	return result
 }
 
-func loadCollectors(list string) (map[string]collector.Collector, error) {
+func loadCollectors(list []string) (map[string]collector.Collector, error) {
 	collectors := map[string]collector.Collector{}
-	enabled := expandEnabledCollectors(list)
+	//enabled := expandEnabledCollectors(list)
 
-	for _, name := range enabled {
+	for _, name := range list {
 		fn, ok := collector.Factories[name]
 		if !ok {
 			return nil, fmt.Errorf("collector '%s' not available", name)
@@ -197,7 +238,8 @@ var (
 	flagEnableAllCollectors = kingpin.Flag("enable-all", "enable all collectors").Default("0").Int()
 )
 
-func initCfg() error {
+func initCfg(cfgpath string) error {
+
 	cfg.Cfg.SingleMode = *flagSingleMode
 
 	if *flagHost != "" {
@@ -235,7 +277,7 @@ func initCfg() error {
 
 	cfg.Cfg.Port = *flagPort
 
-	//cfg.Cfg.Collectors = collector.ListAllCollectors()
+	cfg.Cfg.Collectors = listAllCollectors()
 
 	if cfg.Cfg.EnableAll == 1 {
 		for k, _ := range cfg.Cfg.Collectors {
@@ -243,23 +285,23 @@ func initCfg() error {
 		}
 	}
 
-	return cfg.DumpConfig(*flagCfgFile)
+	return cfg.DumpConfig(cfgpath)
 }
 
 func main() {
 	var (
-		listenAddress = kingpin.Flag(
-			"telemetry.addr",
-			"host:port for WMI exporter.",
-		).Default(":9182").String()
+		// listenAddress = kingpin.Flag(
+		// 	"telemetry.addr",
+		// 	"host:port for WMI exporter.",
+		// ).Default(":9182").String()
 		metricsPath = kingpin.Flag(
 			"telemetry.path",
 			"URL path for surfacing collected metrics.",
 		).Default("/metrics").String()
-		enabledCollectors = kingpin.Flag(
-			"collectors.enabled",
-			"Comma-separated list of collectors to use. Use '[defaults]' as a placeholder for all the collectors enabled by default.").
-			Default(filterAvailableCollectors(defaultCollectors)).String()
+		// enabledCollectors = kingpin.Flag(
+		// 	"collectors.enabled",
+		// 	"Comma-separated list of collectors to use. Use '[defaults]' as a placeholder for all the collectors enabled by default.").
+		// 	Default(filterAvailableCollectors(defaultCollectors)).String()
 		printCollectors = kingpin.Flag(
 			"collectors.print",
 			"If true, print available collectors and exit.",
@@ -267,7 +309,7 @@ func main() {
 	)
 
 	log.AddFlags(kingpin.CommandLine)
-	kingpin.Version(version.Print("wmi_exporter"))
+	//kingpin.Version(version.Print("Corsair"))
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
 
@@ -280,13 +322,21 @@ Golang Version: %s
 		return
 	}
 
-	if *flagInit {
-		_ = initCfg()
-		return
-	} else if *flagUpgrade {
-		// TODO
-		return
+	execdir := path.Dir(os.Args[0])
+	execdir, _ = filepath.Abs(execdir)
+	cfgpath := fmt.Sprintf("%s\\%s", execdir, *flagCfgFile)
+	_, err := os.Stat(cfgpath)
+	if err != nil {
+		_ = initCfg(cfgpath)
 	}
+
+	// if *flagInit {
+	// 	_ = initCfg()
+	// 	return
+	// } else if *flagUpgrade {
+	// 	// TODO
+	// 	return
+	// }
 
 	if *printCollectors {
 		collectorNames := make(sort.StringSlice, 0, len(collector.Factories))
@@ -301,8 +351,12 @@ Golang Version: %s
 		return
 	}
 
-	cfg.LoadConfig(*flagCfgFile)
-	cfg.DumpConfig(*flagCfgFile) // load 过程中可能会修改 cfg.Cfg, 需重新写入
+	if err := cfg.LoadConfig(cfgpath); err != nil {
+		log.Fatalln("fail to load config file:", err)
+	}
+	cfg.DumpConfig(cfgpath) // load 过程中可能会修改 cfg.Cfg, 需重新写入
+
+	enables := loadEnableCollectors()
 
 	if cfg.Cfg.SingleMode == 1 {
 		var scu *url.URL
@@ -328,7 +382,7 @@ Golang Version: %s
 		go svc.Run(serviceName, &wmiExporterService{stopCh: stopCh})
 	}
 
-	collectors, err := loadCollectors(*enabledCollectors)
+	collectors, err := loadCollectors(enables)
 	if err != nil {
 		log.Fatalf("Couldn't load collectors: %s", err)
 	}
@@ -344,17 +398,17 @@ Golang Version: %s
 		http.Redirect(w, r, *metricsPath, http.StatusMovedPermanently)
 	})
 
-	log.Infoln("Starting WMI exporter", version.Info())
+	log.Infoln("Starting Corsair", version.Info())
 	log.Infoln("Build context", version.BuildContext())
 
 	go func() {
-		log.Infoln("Starting server on", *listenAddress)
-		log.Fatalf("cannot start WMI exporter: %s", http.ListenAndServe(*listenAddress, nil))
+		log.Infoln("Starting server on", fmt.Sprintf("localhost:%d", *flagPort))
+		log.Fatalf("cannot start Corsair: %s", http.ListenAndServe(fmt.Sprintf(":%d", *flagPort), nil))
 	}()
 
 	for {
 		if <-stopCh {
-			log.Info("Shutting down WMI exporter")
+			log.Info("Shutting down Corsair")
 			break
 		}
 	}

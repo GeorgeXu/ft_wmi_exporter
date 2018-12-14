@@ -1,0 +1,278 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi' xmlns:fw="http://schemas.microsoft.com/wix/FirewallExtension" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension"> 
+  <?if $(sys.BUILDARCH)=x64 ?>
+    <?define PlatformProgramFiles = "ProgramFiles64Folder" ?>
+  <?else ?>
+    <?define PlatformProgramFiles = "ProgramFilesFolder" ?>
+  <?endif ?>
+
+
+  <Product Name='Corsair' Id='7BDF6ABE-0CC5-4C4E-AE57-75CB3A45E669' UpgradeCode='3889CE34-EFE5-4272-A08E-1A97F416C8DF'
+    Language='2052' Codepage='936' Version='$(var.Version)' Manufacturer='Zhuyun Ltd.'>
+
+    <Package Id='*' Keywords='Installer' Description="CloudCare Corsair Installer"
+      Comments='Exports metrics' Manufacturer='Shanghai ZhuYun Information Technology Co., Ltd.'
+      InstallerVersion='100' Languages='2052' Compressed='yes' SummaryCodepage='936' />
+    
+    <!-- <Condition Message='test &#x000A;
+	WindowsFolder: [WindowsFolder]
+	TempFolder: [TempFolder]
+	AdminToolsFolder: [AdminToolsFolder]
+	COMPANYNAME: [COMPANYNAME]
+	Version: $(var.Version)'>Version9X</Condition> -->
+
+
+    <Media Id='1' Cabinet='Sample.cab' EmbedCab='yes' />
+    <!-- <Property Id='DiskPrompt' Value="Acme's Foobar 1.0 Installation [1]" /> -->
+
+    <Property Id='TEAMID' Secure='yes' />
+    <SetProperty Id="TeamFlag" After="InstallFiles" Sequence="execute" Value="--team-id [TEAMID]">TEAMID</SetProperty>
+    
+	  <Property Id='CLOUDASSETID' Secure='yes' />
+    <SetProperty Id="CloudAssetFlag" After="InstallFiles" Sequence="execute" Value="--cloud-asset-id [CLOUDASSETID]">CLOUDASSETID</SetProperty>
+
+	  <Property Id='ACCESSKEY' Secure='yes' />
+    <SetProperty Id="AKFlag" After="InstallFiles" Sequence="execute" Value="--ak [ACCESSKEY]">ACCESSKEY</SetProperty>
+
+	  <Property Id='SECRETKEY' Secure='yes' />
+    <SetProperty Id="SKFlag" After="InstallFiles" Sequence="execute" Value="--sk [SECRETKEY]">SECRETKEY</SetProperty>
+
+    <Property Id='HOSTIP' Secure='yes' />
+    <SetProperty Id="HostFlag" After="InstallFiles" Sequence="execute" Value="--host [HOSTIP]">HOSTIP</SetProperty>
+
+	  <Property Id='REMOTEHOST' Secure='yes' />
+    <SetProperty Id="RemotehostFlag" After="InstallFiles" Sequence="execute" Value="--remote-host [REMOTEHOST]">REMOTEHOST</SetProperty>
+
+	  <Property Id='LISTENPORT' Value='9100' Secure='yes' />
+    <SetProperty Id="PortFlag" After="InstallFiles" Sequence="execute" Value="--port [LISTENPORT]">LISTENPORT</SetProperty>
+
+    <Property Id='SINGLEMODE' Secure='yes' />
+    <SetProperty Id="SingleModetFlag" After="InstallFiles" Sequence="execute" Value="--single-mode [SINGLEMODE]">SINGLEMODE</SetProperty>
+
+    <Directory Id='TARGETDIR' Name='SourceDir'>
+      <Directory Id='$(var.PlatformProgramFiles)' >
+        <Directory Id='CloudCare' Name='CloudCare'>
+          <Directory Id='INSTALLDIR' Name='Corsair'>
+
+            <Component Id='MainExecutable' Guid='8E3FABBC-9FE7-4942-84BB-7785C917491C'>
+			
+              <File Id='MyExe' Name='Corsair.exe' DiskId='1' Source='bin\Corsair.exe' KeyPath='yes'>
+				        <fw:FirewallException Id="MetricsEndpoint" Name="Corsair (HTTP 9182)" Description="Corsair HTTP endpoint" Port="9182" Protocol="tcp" Scope="any" IgnoreFailure="yes" />
+              </File>
+			  
+			        <ServiceInstall Id="InstallExporterService" Name="Corsair" DisplayName="CloudCare Corsair" Description="Exports metrics from WMI queries" ErrorControl="normal" Start="auto" Type="ownProcess" Arguments="[TeamFlag] [CloudAssetFlag] [AKFlag] [SKFlag] [HostFlag] [PortFlag] [RemotehostFlag]" >
+				        <util:ServiceConfig FirstFailureActionType="restart" SecondFailureActionType="restart" ThirdFailureActionType="restart" RestartServiceDelayInSeconds="5" />
+			        </ServiceInstall>
+			  
+			        <ServiceControl Id="ServiceStateControl" Name="Corsair" Remove="uninstall" Start="install" Stop="both" />
+			  
+            </Component>
+
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id='Complete' Title='Foobar 1.0' Description='The complete package.' TypicalDefault='install' Display='expand' Level='1'
+      ConfigurableDirectory='INSTALLDIR'>
+      <Feature Id='MainProgram' Title='Program' Description='The main executable.' TypicalDefault='install' Level='1'>
+        <ComponentRef Id='MainExecutable' />
+      </Feature>
+    </Feature>
+	
+    <UI>
+      <Property Id="DefaultUIFont">DlgFont8</Property>
+
+      <RadioButtonGroup Property="IAgree">
+        <RadioButton Text="{\DlgFont8} &amp;我接受协议" Value="Yes" X="5" Y="0" Width="250" Height="15" />
+        <RadioButton Text="{\DlgFont8} &amp;我不接受协议" Value="No" X="5" Y="20" Width="250" Height="15" />
+      </RadioButtonGroup>
+
+      <Dialog Id='LicenseAgreementDlg' Width="370" Height="270"
+    Title="[ProductName] $(var.Version) Setup" NoMinimize="yes">
+
+        <Control Id="Buttons" Type="RadioButtonGroup"
+  X="20" Y="187" Width="330" Height="40" Property="IAgree" />
+
+        <Control Id="Next" Type="PushButton" X="220" Y="243" Width="56" Height="17" Default="yes" Text="[ButtonText_Next]">
+            <Publish Event="NewDialog" Value="InstallDlg" >1</Publish>
+            <Condition Action="disable"><![CDATA[IAgree <> "Yes"]]></Condition>
+            <Condition Action="enable">IAgree = "Yes"</Condition>
+        </Control>
+
+        <Control Id="Cancel" Type="PushButton" X="285" Y="243" Width="56" Height="17"
+  Text="[ButtonText_Cancel]">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="[BannerBitmap]" />
+        <Control Id="AgreementText" Type="ScrollableText" X="20" Y="60" Width="330" Height="120" Sunken="yes" TabSkip="no">
+          <Text SourceFile="res\License.rtf" />
+        </Control>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>请阅读以下重要信息，然后再进入下一步。</Text>
+        </Control>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>{\DlgTitleFont}许可协议</Text>
+        </Control>
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+
+      </Dialog>
+
+      <Dialog Id="InstallDlg" Width="370" Height="330" Title="[ProductName] $(var.Version) Setup" NoMinimize="yes">
+    
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>{\DlgTitleFont}安装准备完毕</Text>
+        </Control>
+
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>安装向导已准备完毕，将开始在您的电脑上安装[ProductName]。</Text>
+        </Control>
+
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="[BannerBitmap]" />
+
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+    
+        <Control Id="TeamIDLabel" Type="Text" X="45" Y="60" Width="100" Height="15" TabSkip="no" Text="团队ID(必填):" />
+        <Control Id="TeamIDEdit" Type="Edit" X="45" Y="72" Width="285" Height="18" Property="TEAMID"  />
+    
+        <Control Id="CloudAssetIDLabel" Type="Text" X="45" Y="97" Width="100" Height="15" TabSkip="no" Text="资产ID(必填):" />
+        <Control Id="CloudAssetIDEdit" Type="Edit" X="45" Y="109" Width="285" Height="18" Property="CLOUDASSETID"  />
+    
+        <Control Id="AKLabel" Type="Text" X="45" Y="134" Width="100" Height="15" TabSkip="no" Text="Access Key(必填):" />
+        <Control Id="AKEdit" Type="Edit" X="45" Y="146" Width="285" Height="18" Property="ACCESSKEY"  />
+    
+        <Control Id="SKLabel" Type="Text" X="45" Y="171" Width="100" Height="15" TabSkip="no" Text="Secret Key(必填):" />
+        <Control Id="SKEdit" Type="Edit" X="45" Y="183" Width="285" Height="18" Property="SECRETKEY"  />
+    
+        <Control Id="HostLabel" Type="Text" X="45" Y="208" Width="100" Height="15" TabSkip="no" Text="IP(选填):" />
+        <Control Id="HostEdit" Type="Edit" X="45" Y="220" Width="285" Height="18" Property="HOSTIP"  />
+    
+        <Control Id="PortLabel" Type="Text" X="45" Y="244" Width="100" Height="15" TabSkip="no" Text="监听端口(选填):" />
+        <Control Id="PortEdit" Type="Edit" X="45" Y="256" Width="285" Height="18" Property="LISTENPORT"  />
+    
+    <!-- <Control Id="RemotehostLabel" Type="Text" X="45" Y="294" Width="100" Height="15" TabSkip="no" Text="RemoteHost(测试用):" />
+    <Control Id="RemotehostEdit" Type="Edit" X="45" Y="306" Width="300" Height="18" Property="REMOTEHOST"  /> -->
+    
+        <Control Id="BottomLine" Type="Line" X="0" Y="290" Width="370" Height="0" />
+
+        <Control Id="Back" Type="PushButton" X="160" Y="300" Width="56" Height="17" Cancel="yes" Text="[ButtonText_Back]">
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg">1</Publish>
+        </Control>
+    
+        <Control Id="Install" Type="PushButton" X="220" Y="300" Width="56" Height="17" Default="yes" Text="[ButtonText_Install]">
+          <Condition Action='enable'><![CDATA[TEAMID <> "" AND CLOUDASSETID <> "" AND ACCESSKEY <> "" AND SECRETKEY <> ""]]></Condition>
+          <Condition Action='disable'><![CDATA[TEAMID = "" OR CLOUDASSETID = "" OR ACCESSKEY = "" OR SECRETKEY = ""]]></Condition>
+          <!-- <Publish Event="EndDialog" Value="Return" /> -->
+          <Publish Event="NewDialog" Value="ProgressDlg" />
+        </Control>
+    
+        <Control Id="Cancel" Type="PushButton" X="285" Y="300" Width="56" Height="17" Cancel="yes" Text="[ButtonText_Cancel]">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="ProgressDlg" Width="370" Height="270" Title="[ProductName] $(var.Version) [Setup]" NoMinimize="yes" Modeless="yes">
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="[ButtonText_Cancel]">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+        <Control Id="ActionText" Type="Text" X="70" Y="100" Width="265" Height="10">
+          <Subscribe Event="ActionText" Attribute="Text" />
+        </Control>
+        <Control Id="Text" Type="Text" X="35" Y="65" Width="300" Height="20">
+          <Text>Please wait while installing. This may take several minutes.</Text>
+        </Control>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="20" Y="15" Width="200" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>{\DlgTitleFont}[ProductName]</Text>
+        </Control>
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="ProgressBar" Type="ProgressBar" X="35" Y="115" Width="300" Height="10" ProgressBlocks="yes" Text="Progress done">
+          <Subscribe Event="SetProgress" Attribute="Progress" />
+        </Control>
+        <Control Id="StatusLabel" Type="Text" X="35" Y="100" Width="35" Height="10" Text="Status:" />
+      </Dialog>
+    
+      <Dialog Id="CancelDlg" Width="260" Height="85" Title="[ProductName] $(var.Version) Setup" NoMinimize="yes">
+        <Control Id="No" Type="PushButton" X="132" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="[ButtonText_No]">
+          <Publish Event="EndDialog" Value="Return">1</Publish>
+        </Control>
+        <Control Id="Yes" Type="PushButton" X="72" Y="57" Width="56" Height="17" Text="[ButtonText_Yes]">
+          <Publish Event="EndDialog" Value="Exit">1</Publish>
+        </Control>
+        <Control Id="Text" Type="Text" X="48" Y="15" Width="194" Height="30">
+          <Text>Are you sure you want to cancel [ProductName] installation?</Text>
+        </Control>
+        <!-- <Control Id="Icon" Type="Icon" X="15" Y="15" Width="24" Height="24" ToolTip="Information icon" FixedSize="yes" IconSize="32" Text="[InfoIcon]" /> -->
+      </Dialog>
+    
+      <Dialog Id="ExitDlg" Width="370" Height="270" Title="[ProductName] $(var.Version) Setup" NoMinimize="yes">
+
+        <Control Id="Finish" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="[ButtonText_Finish]">
+          <Publish Event="EndDialog" Value="Return">1</Publish>
+    <!-- <Publish Event='DoAction' Value='LaunchFile'>(NOT Installed) AND (LAUNCHPRODUCT = 1)</Publish> -->
+        </Control>
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="[DialogBitmap]" />
+        <Control Id="Description" Type="Text" X="135" Y="75" Width="220" Height="20" Transparent="yes" NoPrefix="yes">
+          <Text>点击"结束"退出安装。</Text>
+        </Control>
+        <Control Id="Description2" Type="Text" X="135" Y="45" Width="220" Height="20" Transparent="yes" NoPrefix="yes">
+          <Text>[ProductName]将以服务的形式运行在您的电脑上。</Text>
+        </Control>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="60" Transparent="yes" NoPrefix="yes">
+          <Text>{\VerdanaBold13}[ProductName] 安装完成。</Text>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="FatalError" Width="370" Height="270" Title="[ProductName] [Setup]" NoMinimize="yes">
+        <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="[ButtonText_Finish]">
+          <Publish Event="EndDialog" Value="Exit">1</Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Disabled="yes" Text="[ButtonText_Cancel]" />
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="234" TabSkip="no" Text="[DialogBitmap]" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="[ButtonText_Back]" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="60" Transparent="yes" NoPrefix="yes">
+          <Text>{\VerdanaBold13}[ProductName] [Wizard] ended prematurely</Text>
+        </Control>
+        <Control Id="Description1" Type="Text" X="135" Y="70" Width="220" Height="40" Transparent="yes" NoPrefix="yes">
+          <Text>[ProductName] setup ended prematurely because of an error. Your system has not been modified. To install this program at a later time, please run the installation again.</Text>
+        </Control>
+        <Control Id="Description2" Type="Text" X="135" Y="115" Width="220" Height="20" Transparent="yes" NoPrefix="yes">
+          <Text>Click the Finish button to exit the [Wizard].</Text>
+        </Control>
+      </Dialog>
+
+      <TextStyle Id="DlgFont8" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="DlgTitleFont" FaceName="Tahoma" Size="8" Bold="yes" />
+      <TextStyle Id="VerdanaBold13" FaceName="Verdana" Size="13" Bold="yes" />
+
+      <InstallUISequence>
+        <!-- <Show Dialog="FatalError" OnExit="error" /> -->
+        <Show Dialog='LicenseAgreementDlg' After='CostFinalize' />
+        <Show Dialog="ExitDlg" OnExit="success" />
+      </InstallUISequence>
+
+    </UI>
+	
+	<Property Id="ButtonText_Install">安装</Property>
+	<Property Id="ButtonText_Cancel">取消</Property>
+	<Property Id="ButtonText_Next">下一步 &gt;</Property>
+	<Property Id="ButtonText_Back">&lt; 上一步 &gt;</Property>
+	<Property Id="ButtonText_No">&amp;No</Property>
+  <Property Id="ButtonText_Yes">&amp;Yes</Property>
+	<Property Id="ButtonText_Finish">结束</Property>
+  <Property Id="Wizard">安装向导</Property>
+  <Property Id="IAgree">No</Property>
+  <Property Id="BannerBitmap">bannrbmp</Property>
+  <Property Id="DialogBitmap">dlgbmp</Property>
+
+    <!-- <Icon Id="Foobar10.exe" SourceFile="FoobarAppl10.exe" /> -->
+
+  <Binary Id="bannrbmp" SourceFile="res\Banner.bmp" />
+  <Binary Id="dlgbmp" SourceFile="res\Dialog.bmp" />
+
+  </Product>
+</Wix>

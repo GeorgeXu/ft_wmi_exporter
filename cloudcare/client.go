@@ -117,18 +117,23 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	level.Debug(c.logger).Log("msg", "snappy ratio", len(compressed), len(data))
 
 	contentType := "application/x-protobuf"
-	contentEncode := "snappy"
 	date := time.Now().UTC().Format(http.TimeFormat)
 
 	sig := generateAuthorization(compressed, contentType,
 		date, CorsairTeamID, http.MethodPost, CorsairSK)
 
-	httpReq.Header.Add("Content-Encoding", contentEncode)
+	httpReq.Header.Set("Authorization", "corsair "+CorsairAK+":"+sig)
+	httpReq.Header.Set("Content-Encoding", "snappy")
 	httpReq.Header.Set("Content-Type", contentType)
 	httpReq.Header.Set("X-Corsair-Version", git.Version)
 	httpReq.Header.Set("X-Team-ID", CorsairTeamID)
+	httpReq.Header.Set("X-Cloud-Asset-Id", CorsairCloudAssetID)
+	hostip := CorsairHost
+	if hostip == "" {
+		hostip = "default"
+	}
+	httpReq.Header.Set("X-Cloud-Asset-Ip", hostip)
 	httpReq.Header.Set("Date", date)
-	httpReq.Header.Set("Authorization", "node "+CorsairAK+":"+sig)
 	httpReq = httpReq.WithContext(ctx)
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)

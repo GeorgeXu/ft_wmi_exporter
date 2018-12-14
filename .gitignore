@@ -2,3 +2,5 @@
 VERSION
 *.swp
 *.un~
+*.msi
+*.wixobj
