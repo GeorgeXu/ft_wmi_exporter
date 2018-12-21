@@ -32,7 +32,9 @@ func loop(s *Storage, scrapeurl string) {
 		storage: s,
 	}
 
-	ticker := time.NewTicker(time.Duration(PromCfg.GlobalConfig.ScrapeInterval))
+	//ticker := time.NewTicker(time.Duration(PromCfg.GlobalConfig.ScrapeInterval))
+	ticker := time.NewTicker(10 * time.Second)
+
 	defer ticker.Stop()
 
 	for {
@@ -76,7 +78,13 @@ func Start(remotehost string, scrapehost string) error {
 
 	var l promlog.AllowedLevel
 	l.Set("info")
-	logger := promlog.New(&promlog.Config{Level: &l})
+	var lf promlog.AllowedFormat
+	lf.Set("logfmt")
+	logcfg := &promlog.Config{
+		Level:  &l,
+		Format: &lf,
+	}
+	logger := promlog.New(logcfg)
 
 	chStop = make(chan struct{})
 

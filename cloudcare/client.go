@@ -103,7 +103,9 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 		return err
 	}
 
-	level.Info(c.logger).Log("msg", "----send", len(data), len(data))
+	fmt.Println("[debug] start send")
+
+	//level.Info(c.logger).Log("msg", "----send", len(data), len(data))
 
 	compressed := snappy.Encode(nil, data)
 	httpReq, err := http.NewRequest("POST", c.url.String(), bytes.NewReader(compressed))
@@ -114,26 +116,27 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 		return err
 	}
 
-	level.Debug(c.logger).Log("msg", "snappy ratio", len(compressed), len(data))
+	//level.Debug(c.logger).Log("msg", "snappy ratio", len(compressed), len(data))
 
 	contentType := "application/x-protobuf"
+	contentEncode := "snappy"
 	date := time.Now().UTC().Format(http.TimeFormat)
 
-	sig := generateAuthorization(compressed, contentType,
-		date, CorsairTeamID, http.MethodPost, CorsairSK)
+	sig := generateAuthorization(compressed, contentType, date, CorsairTeamID, http.MethodPost, CorsairSK)
 
-	httpReq.Header.Set("Authorization", "corsair "+CorsairAK+":"+sig)
-	httpReq.Header.Set("Content-Encoding", "snappy")
+	httpReq.Header.Set("Content-Encoding", contentEncode)
 	httpReq.Header.Set("Content-Type", contentType)
-	httpReq.Header.Set("X-Corsair-Version", git.Version)
-	httpReq.Header.Set("X-Team-ID", CorsairTeamID)
+	httpReq.Header.Set("X-Team-Id", CorsairTeamID)
 	httpReq.Header.Set("X-Cloud-Asset-Id", CorsairCloudAssetID)
+	httpReq.Header.Set("X-Version", "corsair/"+git.Version)
 	hostip := CorsairHost
 	if hostip == "" {
 		hostip = "default"
 	}
 	httpReq.Header.Set("X-Cloud-Asset-Ip", hostip)
 	httpReq.Header.Set("Date", date)
+	httpReq.Header.Set("Authorization", "corsair "+CorsairAK+":"+sig)
+
 	httpReq = httpReq.WithContext(ctx)
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
@@ -145,6 +148,7 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	if err != nil {
 		// Errors from client.Do are from (for example) network errors, so are
 		// recoverable.
+
 		return recoverableError{err}
 	}
 	defer httpResp.Body.Close()

@@ -7,10 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path"
-	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +18,7 @@ import (
 	"wmi_exporter/cfg"
 	"wmi_exporter/cloudcare"
 	"wmi_exporter/collector"
+	"wmi_exporter/envinfo"
 	"wmi_exporter/git"
 
 	"github.com/StackExchange/wmi"
@@ -34,6 +33,13 @@ import (
 type WmiCollector struct {
 	collectors map[string]collector.Collector
 }
+
+type collectorItem struct {
+	name    string
+	enabled bool
+}
+
+var collectorItemList []collectorItem
 
 const (
 	defaultCollectors            = "cpu,cs,logical_disk,net,os,service,system,textfile"
@@ -94,25 +100,22 @@ func (coll WmiCollector) Collect(ch chan<- prometheus.Metric) {
 	wg.Wait()
 }
 
-func listAllCollectors() map[string]bool {
-	m := make(map[string]bool)
-	defs := strings.Split(defaultCollectors, ",")
-	bhave := false
-	for k, _ := range collector.Factories {
-		if cfg.Cfg.EnableAll > 0 {
-			m[k] = true
-		} else {
-			bhave = false
-			for _, v := range defs {
-				if v == k {
-					bhave = true
-					break
-				}
-			}
-			m[k] = bhave
-		}
+func setEnableCollectors(enables string) {
+
+	parts := strings.Split(enables, "-")
+	var nums []uint32
+	for _, v := range parts {
+		n, _ := strconv.ParseUint(v, 16, 32)
+		nums = append(nums, uint32(n))
 	}
-	return m
+
+	for index := 0; index < len(collectorItemList); index++ {
+
+		n := nums[index/32]
+		flagbit := uint32(1 << uint(index%32))
+
+		collectorItemList[index].enabled = ((n & flagbit) == flagbit)
+	}
 }
 
 func filterAvailableCollectors(collectors string) string {
@@ -187,6 +190,7 @@ func expandEnabledCollectors(enabled string) []string {
 }
 
 func loadCollectors(list []string) (map[string]collector.Collector, error) {
+
 	collectors := map[string]collector.Collector{}
 	//enabled := expandEnabledCollectors(list)
 
@@ -205,6 +209,38 @@ func loadCollectors(list []string) (map[string]collector.Collector, error) {
 }
 
 func init() {
+
+	envinfo.Init()
+
+	collectorItemList = []collectorItem{
+		collectorItem{"ad", true},
+		collectorItem{"cpu", true},
+		collectorItem{"cs", true},
+		collectorItem{"dns", true},
+		collectorItem{"hyperv", true},
+		collectorItem{"iis", true},
+		collectorItem{"logical_disk", true},
+		collectorItem{"memory", true},
+		collectorItem{"msmq", true},
+		collectorItem{"mssql", true},
+		collectorItem{"netframework_clrexceptions", true},
+		collectorItem{"netframework_clrinterop", true},
+		collectorItem{"netframework_clrjit", true},
+		collectorItem{"netframework_clrloading", true},
+		collectorItem{"netframework_clrlocksandthreads", true},
+		collectorItem{"netframework_clrmemory", true},
+		collectorItem{"netframework_clrremoting", true},
+		collectorItem{"netframework_clrsecurity", true},
+		collectorItem{"net", true},
+		collectorItem{"os", true},
+		collectorItem{"process", true},
+		collectorItem{"service", true},
+		collectorItem{"system", true},
+		collectorItem{"tcp", true},
+		collectorItem{"vmware", true},
+		collectorItem{"win_env_userinfo", true},
+	}
+
 	prometheus.MustRegister(version.NewCollector("wmi_exporter"))
 }
 
@@ -222,91 +258,71 @@ func initWbem() {
 }
 
 var (
-	flagSingleMode          = kingpin.Flag("single-mode", "run as single node").Default("0").Int()
-	flagInit                = kingpin.Flag("init", `init collector`).Bool()
-	flagUpgrade             = kingpin.Flag("upgrade", ``).Bool()
-	flagHost                = kingpin.Flag("host", `eg. ip addr`).String()
-	flagRemoteHost          = kingpin.Flag("remote-host", `data bridge addr`).Default("http://kodo.cloudcare.com/v1/write").String()
-	flagScrapeInterval      = kingpin.Flag("scrape-interval", "frequency to upload data").Default("15").Int()
+	metricsPath = kingpin.Flag(
+		"telemetry.path",
+		"URL path for surfacing collected metrics.",
+	).Default("/metrics").String()
+	// enabledCollectors = kingpin.Flag(
+	// 	"collectors.enabled",
+	// 	"Comma-separated list of collectors to use. Use '[defaults]' as a placeholder for all the collectors enabled by default.").
+	// 	Default(filterAvailableCollectors(defaultCollectors)).String()
+	printCollectors = kingpin.Flag(
+		"collectors.print",
+		"If true, print available collectors and exit.",
+	).Bool()
+
+	flagSingleMode          = kingpin.Flag("single-mode", "run as single node").Default("1").Int()
 	flagTeamID              = kingpin.Flag("team-id", "User ID").String()
 	flagCloudAssetID        = kingpin.Flag("cloud-asset-id", "cloud instance ID").String()
 	flagAK                  = kingpin.Flag("ak", `Access Key`).String()
 	flagSK                  = kingpin.Flag("sk", `Secret Key`).String()
-	flagPort                = kingpin.Flag("port", `web listen port`).Default("9100").Int()
-	flagCfgFile             = kingpin.Flag("cfg", `configure file`).Default("cfg.yml").String()
-	flagVersionInfo         = kingpin.Flag("version", "show version info").Bool()
-	flagEnableAllCollectors = kingpin.Flag("enable-all", "enable all collectors").Default("0").Int()
+	flagHost                = kingpin.Flag("host", `eg. ip addr`).String()
+	flagPort                = kingpin.Flag("port", `listen port`).Default("9100").Int()
+	flagEnableAllCollectors = kingpin.Flag("enabled", `enabled collectors`).String()
+
+	flagRemoteHost     = kingpin.Flag("remote-host", `data bridge addr`).Default("http://47.99.146.133:9527/v1/write").String()
+	flagScrapeInterval = kingpin.Flag("scrape-interval", "frequency to upload data").Default("10").Int()
+
+	flagVersionInfo = kingpin.Flag("version", "show version info").Bool()
 )
 
-func initCfg(cfgpath string) error {
+func checkArgs() error {
 
 	cfg.Cfg.SingleMode = *flagSingleMode
 
+	if *flagTeamID == "" || *flagCloudAssetID == "" || *flagAK == "" || *flagSK == "" {
+		log.Fatal("invalid argument")
+	}
+
+	cfg.Cfg.TeamID = *flagTeamID
+	cfg.Cfg.CloudAssetID = *flagCloudAssetID
+	cfg.Cfg.AK = *flagAK
+	cfg.Cfg.SK = cfg.XorEncode(*flagSK)
+	cfg.Cfg.Port = *flagPort
+	cloudcare.CorsairPort = *flagPort
 	if *flagHost != "" {
 		cfg.Cfg.Host = *flagHost
 	}
 
-	cfg.Cfg.RemoteHost = *flagRemoteHost
 	cfg.Cfg.ScrapeInterval = *flagScrapeInterval
-	cfg.Cfg.EnableAll = *flagEnableAllCollectors
+	cfg.Cfg.RemoteHost = *flagRemoteHost
 
-	// unique-id 为必填参数
-	if *flagTeamID == "" {
-		log.Fatal("invalid unique-id")
-	} else {
-		cfg.Cfg.TeamID = *flagTeamID
+	cloudcare.CorsairTeamID = *flagTeamID
+	cloudcare.CorsairCloudAssetID = *flagCloudAssetID
+	cloudcare.CorsairAK = *flagAK
+	cloudcare.CorsairSK = *flagSK
+
+	setEnableCollectors(*flagEnableAllCollectors)
+
+	cfg.Cfg.Collectors = make(map[string]bool)
+	for _, v := range collectorItemList {
+		cfg.Cfg.Collectors[v.name] = v.enabled
 	}
 
-	if *flagCloudAssetID == "" {
-		log.Fatal("invalid cloud assert id")
-	} else {
-		cfg.Cfg.CloudAssetID = *flagCloudAssetID
-	}
-
-	if *flagAK == "" {
-		log.Fatal("invalid ak")
-	} else {
-		cfg.Cfg.AK = *flagAK
-	}
-
-	if *flagSK == "" {
-		log.Fatal("invalid sk")
-	} else {
-		cfg.Cfg.SK = cfg.XorEncode(*flagSK)
-	}
-
-	cfg.Cfg.Port = *flagPort
-
-	cfg.Cfg.Collectors = listAllCollectors()
-
-	if cfg.Cfg.EnableAll == 1 {
-		for k, _ := range cfg.Cfg.Collectors {
-			cfg.Cfg.Collectors[k] = true
-		}
-	}
-
-	return cfg.DumpConfig(cfgpath)
+	return nil
 }
 
 func main() {
-	var (
-		// listenAddress = kingpin.Flag(
-		// 	"telemetry.addr",
-		// 	"host:port for WMI exporter.",
-		// ).Default(":9182").String()
-		metricsPath = kingpin.Flag(
-			"telemetry.path",
-			"URL path for surfacing collected metrics.",
-		).Default("/metrics").String()
-		// enabledCollectors = kingpin.Flag(
-		// 	"collectors.enabled",
-		// 	"Comma-separated list of collectors to use. Use '[defaults]' as a placeholder for all the collectors enabled by default.").
-		// 	Default(filterAvailableCollectors(defaultCollectors)).String()
-		printCollectors = kingpin.Flag(
-			"collectors.print",
-			"If true, print available collectors and exit.",
-		).Bool()
-	)
 
 	log.AddFlags(kingpin.CommandLine)
 	//kingpin.Version(version.Print("Corsair"))
@@ -322,22 +338,6 @@ Golang Version: %s
 		return
 	}
 
-	execdir := path.Dir(os.Args[0])
-	execdir, _ = filepath.Abs(execdir)
-	cfgpath := fmt.Sprintf("%s\\%s", execdir, *flagCfgFile)
-	_, err := os.Stat(cfgpath)
-	if err != nil {
-		_ = initCfg(cfgpath)
-	}
-
-	// if *flagInit {
-	// 	_ = initCfg()
-	// 	return
-	// } else if *flagUpgrade {
-	// 	// TODO
-	// 	return
-	// }
-
 	if *printCollectors {
 		collectorNames := make(sort.StringSlice, 0, len(collector.Factories))
 		for n := range collector.Factories {
@@ -351,10 +351,7 @@ Golang Version: %s
 		return
 	}
 
-	if err := cfg.LoadConfig(cfgpath); err != nil {
-		log.Fatalln("fail to load config file:", err)
-	}
-	cfg.DumpConfig(cfgpath) // load 过程中可能会修改 cfg.Cfg, 需重新写入
+	checkArgs()
 
 	enables := loadEnableCollectors()
 
@@ -394,6 +391,17 @@ Golang Version: %s
 
 	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/health", healthCheck)
+	http.HandleFunc("/collectors", func(w http.ResponseWriter, r *http.Request) {
+		s := ""
+		for _, item := range collectorItemList {
+			k := item.name
+			if v, ok := cfg.Cfg.Collectors[item.name]; ok {
+				s += fmt.Sprintf("%s = %v", k, v)
+				s += "\n"
+			}
+		}
+		w.Write([]byte(s))
+	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, *metricsPath, http.StatusMovedPermanently)
 	})

@@ -80,6 +80,8 @@ type versionDesc struct {
 	ChangeLog string `json:"changeLog"` // TODO: add release note
 }
 
+var buildVersion string
+
 func init() {
 
 	var err error
@@ -199,6 +201,13 @@ func compile() {
 			log.Fatalf("failed to mkdir: %v", err)
 		}
 
+		ver := buildVersion
+		nfind := strings.Index(ver, "-")
+		if nfind != -1 {
+			ver = ver[:nfind]
+		}
+		ioutil.WriteFile(path.Join(dir, "version.txt"), []byte(ver), 0666)
+
 		dir, err = filepath.Abs(dir)
 		if err != nil {
 			log.Fatal("[fatal] %v", err)
@@ -211,7 +220,7 @@ func compile() {
 
 	wg.Wait()
 	log.Printf("build elapsed %v", time.Since(start))
-	buildMSI()
+	//buildMSI()
 }
 
 func buildMSI() {
@@ -248,6 +257,7 @@ func getCurrentVersionInfo(url string) *versionDesc {
 	if err := json.Unmarshal(info, &vd); err != nil {
 		log.Fatal(err)
 	}
+
 	return &vd
 }
 
@@ -339,6 +349,8 @@ func main() {
 	}
 
 	curVersion = bytes.TrimSpace(curVersion)
+
+	buildVersion = string(bytes.TrimSpace(curVersion[1:]))
 
 	if *flagPub {
 		releaseAgent()

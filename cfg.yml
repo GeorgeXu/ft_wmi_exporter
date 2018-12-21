@@ -1,0 +1,37 @@
+team_id: AT67DTGGVB
+cloud_asset_id: gjhfuhubgf
+ak: aaakjgfgf
+sk: sQdXzt0wYvkNB7gY4C0CK9oxU1zt1+t+63uObs7E/MYReulggozOrVlzJja40Jt1k/49wWUdmQGmFQ9NuEfw2MTaCKT949xe4y24fC/n6qtKGwJgagEsbZkNA6AYP2EWZzQ3z5lmXpaf+W4MK5/mEKNWSzB9HQFGVYbLtw33uOk=
+port: 9100
+collectors:
+  ad: false
+  cpu: true
+  cs: true
+  dns: false
+  hyperv: false
+  iis: false
+  logical_disk: true
+  memory: false
+  msmq: false
+  mssql: false
+  net: true
+  netframework_clrexceptions: false
+  netframework_clrinterop: false
+  netframework_clrjit: false
+  netframework_clrloading: false
+  netframework_clrlocksandthreads: false
+  netframework_clrmemory: false
+  netframework_clrremoting: false
+  netframework_clrsecurity: false
+  os: true
+  process: false
+  service: true
+  system: true
+  tcp: false
+  textfile: true
+  vmware: false
+single_mode: 0
+host: 0.0.0.0
+scrap_interval: 15
+remote_host: http://kodo.cloudcare.com/v1/write
+enable_all: 0

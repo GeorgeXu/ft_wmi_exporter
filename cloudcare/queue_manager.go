@@ -3,6 +3,7 @@ package cloudcare
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -437,14 +438,15 @@ func (s *shards) sendSamplesWithBackoff(samples model.Samples) {
 		err := s.qm.client.Store(s.ctx, req)
 
 		if err == nil {
+			fmt.Println("send ok")
 			return
 		}
 
-		ds, _ := dumpSamples(samples)
+		fmt.Printf("send error: %s", err)
 
-		level.Warn(s.qm.logger).Log("msg",
-			"Error sending samples to remote storage", "samples",
-			ds, "err", err)
+		//ds, _ := dumpSamples(samples)
+
+		//level.Warn(s.qm.logger).Log("msg","Error sending samples to remote storage", "samples",ds, "err", err)
 
 		if _, ok := err.(recoverableError); !ok {
 			break
