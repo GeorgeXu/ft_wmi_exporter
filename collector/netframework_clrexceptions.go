@@ -17,6 +17,7 @@ func init() {
 
 // A NETFramework_NETCLRExceptionsCollector is a Prometheus collector for WMI Win32_PerfRawData_NETFramework_NETCLRExceptions metrics
 type NETFramework_NETCLRExceptionsCollector struct {
+	BaseErrControl
 	NumberofExcepsThrown *prometheus.Desc
 	NumberofFilters      *prometheus.Desc
 	NumberofFinallys     *prometheus.Desc
@@ -57,8 +58,12 @@ func NewNETFramework_NETCLRExceptionsCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *NETFramework_NETCLRExceptionsCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting win32_perfrawdata_netframework_netclrexceptions metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

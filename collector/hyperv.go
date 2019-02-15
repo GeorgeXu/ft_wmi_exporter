@@ -16,6 +16,7 @@ func init() {
 
 // HyperVCollector is a Prometheus collector for hyper-v
 type HyperVCollector struct {
+	BaseErrControl
 	// Win32_PerfRawData_VmmsVirtualMachineStats_HyperVVirtualMachineHealthSummary
 	HealthCritical *prometheus.Desc
 	HealthOk       *prometheus.Desc
@@ -598,57 +599,67 @@ func NewHyperVCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *HyperVCollector) Collect(ch chan<- prometheus.Metric) error {
-	if desc, err := c.collectVmHealth(ch); err != nil {
+	if c.shouldSkip() {
+		return nil
+	}
+	var err error
+	var desc *prometheus.Desc
+
+	if desc, err = c.collectVmHealth(ch); err != nil {
 		log.Error("failed collecting hyperV health status metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectVmVid(ch); err != nil {
+	if desc, err = c.collectVmVid(ch); err != nil {
 		log.Error("failed collecting hyperV pages metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectVmHv(ch); err != nil {
+	if desc, err = c.collectVmHv(ch); err != nil {
 		log.Error("failed collecting hyperV hv status metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectVmProcessor(ch); err != nil {
+	if desc, err = c.collectVmProcessor(ch); err != nil {
 		log.Error("failed collecting hyperV processor metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectHostCpuUsage(ch); err != nil {
+	if desc, err = c.collectHostCpuUsage(ch); err != nil {
 		log.Error("failed collecting hyperV host CPU metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectVmCpuUsage(ch); err != nil {
+	if desc, err = c.collectVmCpuUsage(ch); err != nil {
 		log.Error("failed collecting hyperV VM CPU metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectVmSwitch(ch); err != nil {
+	if desc, err = c.collectVmSwitch(ch); err != nil {
 		log.Error("failed collecting hyperV switch metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectVmEthernet(ch); err != nil {
+	if desc, err = c.collectVmEthernet(ch); err != nil {
 		log.Error("failed collecting hyperV ethernet metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectVmStorage(ch); err != nil {
+	if desc, err = c.collectVmStorage(ch); err != nil {
 		log.Error("failed collecting hyperV virtual storage metrics:", desc, err)
-		return err
+		goto fail
 	}
 
-	if desc, err := c.collectVmNetwork(ch); err != nil {
+	if desc, err = c.collectVmNetwork(ch); err != nil {
 		log.Error("failed collecting hyperV virtual network metrics:", desc, err)
-		return err
 	}
 
-	return nil
+fail:
+	if err != nil {
+		c.updateErrCounter()
+	}
+
+	return err
 }
 
 // Win32_PerfRawData_VmmsVirtualMachineStats_HyperVVirtualMachineHealthSummary vm health status

@@ -17,6 +17,7 @@ func init() {
 
 // A NETFramework_NETCLRJitCollector is a Prometheus collector for WMI Win32_PerfRawData_NETFramework_NETCLRJit metrics
 type NETFramework_NETCLRJitCollector struct {
+	BaseErrControl
 	NumberofMethodsJitted      *prometheus.Desc
 	TimeinJit                  *prometheus.Desc
 	StandardJitFailures        *prometheus.Desc
@@ -57,8 +58,12 @@ func NewNETFramework_NETCLRJitCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *NETFramework_NETCLRJitCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting win32_perfrawdata_netframework_netclrjit metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

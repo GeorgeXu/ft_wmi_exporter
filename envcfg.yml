@@ -1,0 +1,9 @@
+- sub_system: user
+  name: list
+  type: osquery
+  tags:
+  - json
+  help: show current user list
+  enabled: true
+  sql: select * from users;
+

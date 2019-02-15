@@ -34,7 +34,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"golang.org/x/sys/windows/registry"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (
@@ -145,6 +145,7 @@ func init() {
 
 // A MSSQLCollector is a Prometheus collector for various WMI Win32_PerfRawData_MSSQLSERVER_* metrics
 type MSSQLCollector struct {
+	BaseErrControl
 	// meta
 	mssqlScrapeDurationDesc *prometheus.Desc
 	mssqlScrapeSuccessDesc  *prometheus.Desc
@@ -1703,6 +1704,9 @@ func (c *MSSQLCollector) execute(name string, fn mssqlCollectorFunc, ch chan<- p
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *MSSQLCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	wg := sync.WaitGroup{}
 
 	enabled := mssqlExpandEnabledCollectors(*mssqlEnabledCollectors)
@@ -1718,6 +1722,7 @@ func (c *MSSQLCollector) Collect(ch chan<- prometheus.Metric) error {
 
 	// this shoud return an error if any? some? children errord.
 	if c.mssqlChildCollectorFailure > 0 {
+		c.updateErrCounter()
 		return errors.New("at least one child collector failed")
 	}
 	return nil

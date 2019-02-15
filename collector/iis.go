@@ -18,7 +18,7 @@ import (
 	"github.com/StackExchange/wmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 func init() {
@@ -65,6 +65,7 @@ var (
 )
 
 type IISCollector struct {
+	BaseErrControl
 	CurrentAnonymousUsers         *prometheus.Desc
 	CurrentBlockedAsyncIORequests *prometheus.Desc
 	CurrentCGIRequests            *prometheus.Desc
@@ -820,8 +821,12 @@ func NewIISCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *IISCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting iis metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

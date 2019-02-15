@@ -11,7 +11,7 @@ import (
 	"github.com/StackExchange/wmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 func init() {
@@ -27,6 +27,7 @@ var (
 
 // A serviceCollector is a Prometheus collector for WMI Win32_Service metrics
 type serviceCollector struct {
+	BaseErrControl
 	State     *prometheus.Desc
 	StartMode *prometheus.Desc
 	Status    *prometheus.Desc

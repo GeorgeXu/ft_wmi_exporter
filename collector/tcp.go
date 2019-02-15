@@ -8,6 +8,7 @@ package collector
 
 import (
 	"errors"
+
 	"github.com/StackExchange/wmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
@@ -19,6 +20,7 @@ func init() {
 
 // A TCPCollector is a Prometheus collector for WMI Win32_PerfRawData_Tcpip_TCPv4 metrics
 type TCPCollector struct {
+	BaseErrControl
 	ConnectionFailures         *prometheus.Desc
 	ConnectionsActive          *prometheus.Desc
 	ConnectionsEstablished     *prometheus.Desc
@@ -95,8 +97,12 @@ func NewTCPCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *TCPCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting tcp metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

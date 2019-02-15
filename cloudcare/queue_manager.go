@@ -3,7 +3,6 @@ package cloudcare
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -352,7 +351,7 @@ func (s *shards) enqueue(sample *model.Sample) bool {
 }
 
 func addTags(s *model.Sample) {
-	s.Metric[model.LabelName(`cloud_asset_id`)] = model.LabelValue(CorsairCloudAssetID)
+	s.Metric[model.LabelName(`uploader_uid`)] = model.LabelValue(CorsairUploaderUID)
 	s.Metric[model.LabelName(`host`)] = model.LabelValue(CorsairHost)
 }
 
@@ -438,15 +437,13 @@ func (s *shards) sendSamplesWithBackoff(samples model.Samples) {
 		err := s.qm.client.Store(s.ctx, req)
 
 		if err == nil {
-			fmt.Println("send ok")
+			//level.Info(s.qm.logger).Log("msg", "send samples ok", "sample count", len(samples))
 			return
 		}
 
-		fmt.Printf("send error: %s", err)
-
 		//ds, _ := dumpSamples(samples)
 
-		//level.Warn(s.qm.logger).Log("msg","Error sending samples to remote storage", "samples",ds, "err", err)
+		level.Warn(s.qm.logger).Log("msg", "Error sending samples to remote storage", "err", err)
 
 		if _, ok := err.(recoverableError); !ok {
 			break

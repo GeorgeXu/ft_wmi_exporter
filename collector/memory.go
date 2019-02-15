@@ -17,6 +17,7 @@ func init() {
 
 // A MemoryCollector is a Prometheus collector for WMI Win32_PerfRawData_PerfOS_Memory metrics
 type MemoryCollector struct {
+	BaseErrControl
 	AvailableBytes                  *prometheus.Desc
 	CacheBytes                      *prometheus.Desc
 	CacheBytesPeak                  *prometheus.Desc
@@ -257,8 +258,12 @@ func NewMemoryCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *MemoryCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting memory metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

@@ -11,7 +11,7 @@ import (
 	"github.com/StackExchange/wmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 func init() {
@@ -24,6 +24,7 @@ var (
 
 // A Win32_PerfRawData_MSMQ_MSMQQueueCollector is a Prometheus collector for WMI Win32_PerfRawData_MSMQ_MSMQQueue metrics
 type Win32_PerfRawData_MSMQ_MSMQQueueCollector struct {
+	BaseErrControl
 	BytesinJournalQueue    *prometheus.Desc
 	BytesinQueue           *prometheus.Desc
 	MessagesinJournalQueue *prometheus.Desc
@@ -72,8 +73,12 @@ func NewMSMQCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *Win32_PerfRawData_MSMQ_MSMQQueueCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting msmq metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

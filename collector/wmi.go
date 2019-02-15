@@ -3,10 +3,40 @@ package collector
 import (
 	"bytes"
 	"reflect"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 )
+
+const (
+	MaxTryCount    = 3
+	MaxTryInterval = 60 * 3
+)
+
+type BaseErrControl struct {
+	errTime     int64
+	errTryCount int
+}
+
+func (c *BaseErrControl) shouldSkip() bool {
+	current := time.Now().Unix()
+	if c.errTime > 0 && (current-c.errTime) > MaxTryInterval {
+		c.errTryCount = 0
+		c.errTime = current
+		return false
+	}
+	return (c.errTryCount >= 3)
+}
+
+func (c *BaseErrControl) updateErrCounter() {
+	if c.errTryCount < MaxTryCount {
+		c.errTryCount++
+	}
+	if c.errTryCount == MaxTryCount {
+		c.errTime = time.Now().Unix()
+	}
+}
 
 // ...
 const (

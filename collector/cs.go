@@ -19,6 +19,7 @@ func init() {
 
 // A CSCollector is a Prometheus collector for WMI metrics
 type CSCollector struct {
+	BaseErrControl
 	PhysicalMemoryBytes *prometheus.Desc
 	LogicalProcessors   *prometheus.Desc
 }
@@ -46,8 +47,12 @@ func NewCSCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *CSCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting cs metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

@@ -13,7 +13,7 @@ import (
 	"github.com/StackExchange/wmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 func init() {
@@ -33,6 +33,7 @@ var (
 
 // A LogicalDiskCollector is a Prometheus collector for WMI Win32_PerfRawData_PerfDisk_LogicalDisk metrics
 type LogicalDiskCollector struct {
+	BaseErrControl
 	RequestsQueued  *prometheus.Desc
 	ReadBytesTotal  *prometheus.Desc
 	ReadsTotal      *prometheus.Desc
@@ -139,8 +140,12 @@ func NewLogicalDiskCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *LogicalDiskCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting logical_disk metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

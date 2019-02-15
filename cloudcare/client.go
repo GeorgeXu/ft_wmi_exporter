@@ -85,25 +85,10 @@ func generateAuthorization(content []byte, contentType string, dateStr string, k
 // Store sends a batch of samples to the HTTP endpoint.
 func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 
-	for _, t := range req.Timeseries {
-		t.Labels = append(t.Labels, &prompb.Label{
-			Name:  "cloud_asset_id",
-			Value: CorsairCloudAssetID,
-		})
-		if CorsairHost != "" {
-			t.Labels = append(t.Labels, &prompb.Label{
-				Name:  "host",
-				Value: CorsairHost,
-			})
-		}
-	}
-
 	data, err := proto.Marshal(req)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("[debug] start send")
 
 	//level.Info(c.logger).Log("msg", "----send", len(data), len(data))
 
@@ -127,13 +112,13 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	httpReq.Header.Set("Content-Encoding", contentEncode)
 	httpReq.Header.Set("Content-Type", contentType)
 	httpReq.Header.Set("X-Team-Id", CorsairTeamID)
-	httpReq.Header.Set("X-Cloud-Asset-Id", CorsairCloudAssetID)
+	httpReq.Header.Set("X-Uploader-Uid", CorsairUploaderUID)
 	httpReq.Header.Set("X-Version", "corsair/"+git.Version)
 	hostip := CorsairHost
 	if hostip == "" {
 		hostip = "default"
 	}
-	httpReq.Header.Set("X-Cloud-Asset-Ip", hostip)
+	httpReq.Header.Set("X-Uploader-Ip", hostip)
 	httpReq.Header.Set("Date", date)
 	httpReq.Header.Set("Authorization", "corsair "+CorsairAK+":"+sig)
 
@@ -141,8 +126,6 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-
-	fmt.Println(c.url.String())
 
 	httpResp, err := ctxhttp.Do(ctx, c.client, httpReq)
 	if err != nil {

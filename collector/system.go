@@ -7,6 +7,7 @@ package collector
 
 import (
 	"errors"
+
 	"github.com/StackExchange/wmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
@@ -18,6 +19,7 @@ func init() {
 
 // A SystemCollector is a Prometheus collector for WMI metrics
 type SystemCollector struct {
+	BaseErrControl
 	ContextSwitchesTotal     *prometheus.Desc
 	ExceptionDispatchesTotal *prometheus.Desc
 	ProcessorQueueLength     *prometheus.Desc
@@ -73,8 +75,12 @@ func NewSystemCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting system metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

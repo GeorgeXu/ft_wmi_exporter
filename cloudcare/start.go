@@ -12,33 +12,51 @@ import (
 )
 
 var (
-	remoteWriteUrl *url.URL
-	remoteStorage  *Storage
-	PromCfg        config.Config
-	chStop         chan struct{}
+	remoteMetricWrite *Storage
+	remoteEnvWrite    *Storage
 
-	CorsairCloudAssetID   string
-	CorsairTeamID         string
-	CorsairSK             string
-	CorsairAK             string
-	CorsairHost           string
-	CorsairPort           int
-	CorsairScrapeInterval int
+	PromCfg config.Config
+	chStop  chan struct{}
+
+	CorsairUploaderUID       string
+	CorsairTeamID            string
+	CorsairSK                string
+	CorsairAK                string
+	CorsairHost              string
+	CorsairPort              int
+	CorsairScrapeInterval    int
+	CorsairScrapeEnvInterval int
+
+	CorsairRemoteHost       string
+	CorsairMetricsWritePath = "v1/write"
+	CorsairEnvWritePath     = "v1/write/env"
+
+	CorsairInstallPath string
+
+	logger log.Logger
 )
 
-func loop(s *Storage, scrapeurl string) {
+func loop() {
 
-	sp := &scrape{
-		storage: s,
+	sp := []*scrape{
+		&scrape{
+			storage:   remoteMetricWrite,
+			scrapeUrl: fmt.Sprintf("http://0.0.0.0:%d/metrics", CorsairPort),
+		},
+		&scrape{
+			storage:   remoteEnvWrite,
+			scrapeUrl: fmt.Sprintf("http://0.0.0.0:%d/env_infos", CorsairPort),
+		},
 	}
 
-	//ticker := time.NewTicker(time.Duration(PromCfg.GlobalConfig.ScrapeInterval))
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(time.Duration(CorsairScrapeInterval) * time.Second)
 
 	defer ticker.Stop()
 
+	var contentType string
+	var err error
+
 	for {
-		var buf bytes.Buffer
 
 		select {
 		case <-chStop:
@@ -46,17 +64,17 @@ func loop(s *Storage, scrapeurl string) {
 		default:
 		}
 
-		var (
-			start = time.Now()
-		)
+		for _, s := range sp {
 
-		contentType, err := sp.scrape(&buf, scrapeurl)
+			var buf bytes.Buffer
 
-		if err == nil {
-			sp.appendScrape(buf.Bytes(), contentType, start)
-		} else {
-			fmt.Println("scrape error:", err)
-			return
+			start := time.Now()
+			contentType, err = s.scrape(&buf, false)
+			if err != nil {
+				fmt.Println("scrape error:", err)
+				return
+			}
+			s.appendScrape(buf.Bytes(), contentType, start)
 		}
 
 		select {
@@ -67,43 +85,90 @@ func loop(s *Storage, scrapeurl string) {
 	}
 }
 
-func Start(remotehost string, scrapehost string) error {
+func Start() error {
 
-	u, err := url.Parse(remotehost)
-	if err != nil {
-		return err
-	}
-
-	remoteWriteUrl = u
-
-	var l promlog.AllowedLevel
-	l.Set("info")
-	var lf promlog.AllowedFormat
-	lf.Set("logfmt")
-	logcfg := &promlog.Config{
-		Level:  &l,
-		Format: &lf,
-	}
-	logger := promlog.New(logcfg)
+	var al promlog.AllowedLevel
+	al.Set("info")
+	var af promlog.AllowedFormat
+	af.Set("logfmt")
+	logger = promlog.New(
+		&promlog.Config{
+			Level:  &al,
+			Format: &af,
+		})
 
 	chStop = make(chan struct{})
 
-	RemoteFlushDeadline := time.Duration(60 * time.Second)
+	//addConstantLabels()
 
-	remoteStorage = NewStorage(log.With(logger, "component", "remote"), nil, time.Duration(RemoteFlushDeadline))
+	if err := setRemoteStorage(CorsairMetricsWritePath); err != nil {
+		return err
+	}
 
-	if err := remoteStorage.ApplyConfig(&PromCfg); err != nil {
+	if err := setRemoteStorage(CorsairEnvWritePath); err != nil {
 		return err
 	}
 
 	go func() {
-		time.Sleep(1 * time.Second)
-		loop(remoteStorage, scrapehost)
+		time.Sleep(2 * time.Second)
+		loop()
 	}()
 
 	return nil
 }
 
-func GetDataBridgeUrl() *url.URL {
-	return remoteWriteUrl
+func setRemoteStorage(path string) error {
+
+	ustr := fmt.Sprintf("%s%s", CorsairRemoteHost, path)
+	u, err := url.Parse(ustr)
+	if err != nil {
+		return err
+	}
+
+	if path == CorsairMetricsWritePath {
+		remoteMetricWrite = NewStorage(log.With(logger, "component", "metrics"), nil, time.Duration(time.Duration(60*time.Second)))
+		if err := remoteMetricWrite.ApplyConfig(&PromCfg, u); err != nil {
+			return err
+		}
+	} else {
+		remoteEnvWrite = NewStorage(log.With(logger, "component", "env"), nil, time.Duration(time.Duration(60*time.Second)))
+		if err := remoteEnvWrite.ApplyConfig(&PromCfg, u); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// func addConstantLabels() {
+// 	exlabels := make(map[model.LabelName]model.LabelValue)
+// 	exlabels["cloud_asset_id"] = model.LabelValue(CorsairCloudAssetID)
+// 	if CorsairHost != "" {
+// 		exlabels["host"] = model.LabelValue(CorsairHost)
+// 	} else {
+// 		exlabels["host"] = "default"
+// 	}
+// 	PromCfg.GlobalConfig.ExternalLabels = exlabels
+// }
+
+func GetDataBridgeUrl() ([]*url.URL, error) {
+	var result []*url.URL
+
+	ustr := fmt.Sprintf("%s%s", CorsairRemoteHost, CorsairMetricsWritePath)
+	u, err := url.Parse(ustr)
+	if err != nil {
+		return nil, err
+	}
+
+	result = append(result, u)
+
+	ustr = fmt.Sprintf("%s%s", CorsairRemoteHost, CorsairEnvWritePath)
+	u, err = url.Parse(ustr)
+	if err != nil {
+		return nil, err
+	}
+
+	result = append(result, u)
+
+	return result, nil
 }

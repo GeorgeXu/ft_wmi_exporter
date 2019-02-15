@@ -1,6 +1,7 @@
 package cloudcare
 
 import (
+	"net/url"
 	"sync"
 	"time"
 
@@ -53,36 +54,40 @@ func NewStorage(l log.Logger, stCallback func(), flushDeadline time.Duration) *S
 }
 
 // ApplyConfig updates the state as the new config requires.
-func (s *Storage) ApplyConfig(conf *config.Config) error {
+func (s *Storage) ApplyConfig(conf *config.Config, ur *url.URL) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	newQueues := []*QueueManager{}
 
-	rwCfg := config.DefaultRemoteWriteConfig
-	rwCfg.URL = &config_util.URL{
-		URL: GetDataBridgeUrl(),
-	}
+	urls := []*url.URL{ur}
 
-	clientCfg := &ClientConfig{
-		URL:              rwCfg.URL,
-		Timeout:          rwCfg.RemoteTimeout,
-		HTTPClientConfig: rwCfg.HTTPClientConfig,
-	}
+	for _, u := range urls {
+		rwCfg := config.DefaultRemoteWriteConfig
+		rwCfg.URL = &config_util.URL{
+			URL: u,
+		}
 
-	c, err := NewClient(0, s.logger, clientCfg)
-	if err != nil {
-		return err
-	}
+		clientCfg := &ClientConfig{
+			URL:              rwCfg.URL,
+			Timeout:          rwCfg.RemoteTimeout,
+			HTTPClientConfig: rwCfg.HTTPClientConfig,
+		}
 
-	newQueues = append(newQueues, newQueueManager(
-		s.logger,
-		rwCfg.QueueConfig,
-		conf.GlobalConfig.ExternalLabels,
-		rwCfg.WriteRelabelConfigs,
-		c,
-		s.flushDeadline,
-	))
+		c, err := NewClient(0, s.logger, clientCfg)
+		if err != nil {
+			return err
+		}
+
+		newQueues = append(newQueues, newQueueManager(
+			s.logger,
+			rwCfg.QueueConfig,
+			conf.GlobalConfig.ExternalLabels,
+			rwCfg.WriteRelabelConfigs,
+			c,
+			s.flushDeadline,
+		))
+	}
 
 	for _, q := range s.queues {
 		q.Stop()

@@ -17,6 +17,7 @@ func init() {
 
 // A NETFramework_NETCLRInteropCollector is a Prometheus collector for WMI Win32_PerfRawData_NETFramework_NETCLRInterop metrics
 type NETFramework_NETCLRInteropCollector struct {
+	BaseErrControl
 	NumberofCCWs        *prometheus.Desc
 	Numberofmarshalling *prometheus.Desc
 	NumberofStubs       *prometheus.Desc
@@ -50,8 +51,12 @@ func NewNETFramework_NETCLRInteropCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *NETFramework_NETCLRInteropCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting win32_perfrawdata_netframework_netclrinterop metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

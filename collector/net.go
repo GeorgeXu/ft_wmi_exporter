@@ -15,7 +15,7 @@ import (
 	"github.com/StackExchange/wmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 func init() {
@@ -36,6 +36,7 @@ var (
 
 // A NetworkCollector is a Prometheus collector for WMI Win32_PerfRawData_Tcpip_NetworkInterface metrics
 type NetworkCollector struct {
+	BaseErrControl
 	BytesReceivedTotal       *prometheus.Desc
 	BytesSentTotal           *prometheus.Desc
 	BytesTotal               *prometheus.Desc
@@ -139,8 +140,12 @@ func NewNetworkCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *NetworkCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting net metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

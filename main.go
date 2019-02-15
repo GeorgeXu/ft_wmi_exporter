@@ -3,10 +3,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -192,7 +193,6 @@ func expandEnabledCollectors(enabled string) []string {
 func loadCollectors(list []string) (map[string]collector.Collector, error) {
 
 	collectors := map[string]collector.Collector{}
-	//enabled := expandEnabledCollectors(list)
 
 	for _, name := range list {
 		fn, ok := collector.Factories[name]
@@ -209,8 +209,6 @@ func loadCollectors(list []string) (map[string]collector.Collector, error) {
 }
 
 func init() {
-
-	envinfo.Init()
 
 	collectorItemList = []collectorItem{
 		collectorItem{"ad", true},
@@ -238,7 +236,6 @@ func init() {
 		collectorItem{"system", true},
 		collectorItem{"tcp", true},
 		collectorItem{"vmware", true},
-		collectorItem{"win_env_userinfo", true},
 	}
 
 	prometheus.MustRegister(version.NewCollector("wmi_exporter"))
@@ -262,6 +259,14 @@ var (
 		"telemetry.path",
 		"URL path for surfacing collected metrics.",
 	).Default("/metrics").String()
+
+	envinfoPath = kingpin.Flag(
+		"telemetry.envpath",
+		"URL path for surfacing collected envinfo.",
+	).Default("/env_infos").String()
+
+	metaPath = kingpin.Flag("web.meta-path", "Path under which to expose meta info.").Default("/meta").String()
+
 	// enabledCollectors = kingpin.Flag(
 	// 	"collectors.enabled",
 	// 	"Comma-separated list of collectors to use. Use '[defaults]' as a placeholder for all the collectors enabled by default.").
@@ -273,44 +278,71 @@ var (
 
 	flagSingleMode          = kingpin.Flag("single-mode", "run as single node").Default("1").Int()
 	flagTeamID              = kingpin.Flag("team-id", "User ID").String()
-	flagCloudAssetID        = kingpin.Flag("cloud-asset-id", "cloud instance ID").String()
+	flagUploaderUID         = kingpin.Flag("uploader-uid", "uploader UID").String()
 	flagAK                  = kingpin.Flag("ak", `Access Key`).String()
 	flagSK                  = kingpin.Flag("sk", `Secret Key`).String()
 	flagHost                = kingpin.Flag("host", `eg. ip addr`).String()
 	flagPort                = kingpin.Flag("port", `listen port`).Default("9100").Int()
-	flagEnableAllCollectors = kingpin.Flag("enabled", `enabled collectors`).String()
+	flagEnableAllCollectors = kingpin.Flag("enabled", `enabled collectors`).Default("1ffffff").String()
+	flagInstallPath         = kingpin.Flag("installpath", ``).String()
 
-	flagRemoteHost     = kingpin.Flag("remote-host", `data bridge addr`).Default("http://47.99.146.133:9527/v1/write").String()
-	flagScrapeInterval = kingpin.Flag("scrape-interval", "frequency to upload data").Default("10").Int()
+	//flagRemoteHost             = kingpin.Flag("remote-host", `data bridge addr`).Default("http://47.99.146.133:9527/").String()
+	flagRemoteHost = kingpin.Flag("remote-host", `data bridge addr`).Default("http://172.16.0.12:10401/").String()
+
+	flagRemoteMetricsWritePath = kingpin.Flag("metric-path", ``).Default("v1/write").String()
+	flagRemoteEnvWritePath     = kingpin.Flag("env-path", ``).Default("v1/write/env").String()
+
+	flagScrapeInterval        = kingpin.Flag("scrape-interval", "frequency to upload data").Default("3").Int()
+	flagEnvInfoScrapeInterval = kingpin.Flag("scrape-env-interval", "frequency to upload env info").Default("10").Int()
 
 	flagVersionInfo = kingpin.Flag("version", "show version info").Bool()
+
+	flagProvider = kingpin.Flag("provider", "cloud service provider").Default("aliyun").String()
 )
 
 func checkArgs() error {
 
+	exepath := os.Args[0]
+	cloudcare.CorsairInstallPath = exepath
+
 	cfg.Cfg.SingleMode = *flagSingleMode
 
-	if *flagTeamID == "" || *flagCloudAssetID == "" || *flagAK == "" || *flagSK == "" {
+	if *flagTeamID == "" || *flagUploaderUID == "" || *flagAK == "" || *flagSK == "" {
 		log.Fatal("invalid argument")
 	}
 
 	cfg.Cfg.TeamID = *flagTeamID
-	cfg.Cfg.CloudAssetID = *flagCloudAssetID
+	cfg.Cfg.UploaderUID = *flagUploaderUID
 	cfg.Cfg.AK = *flagAK
-	cfg.Cfg.SK = cfg.XorEncode(*flagSK)
-	cfg.Cfg.Port = *flagPort
-	cloudcare.CorsairPort = *flagPort
-	if *flagHost != "" {
-		cfg.Cfg.Host = *flagHost
-	}
-
-	cfg.Cfg.ScrapeInterval = *flagScrapeInterval
-	cfg.Cfg.RemoteHost = *flagRemoteHost
+	cfg.Cfg.SK = *flagSK // cfg.XorEncode(*flagSK)
 
 	cloudcare.CorsairTeamID = *flagTeamID
-	cloudcare.CorsairCloudAssetID = *flagCloudAssetID
+	cloudcare.CorsairUploaderUID = *flagUploaderUID
 	cloudcare.CorsairAK = *flagAK
-	cloudcare.CorsairSK = *flagSK
+	cloudcare.CorsairSK = cfg.Cfg.SK
+
+	cfg.Cfg.Port = *flagPort
+	cloudcare.CorsairPort = *flagPort
+
+	if *flagHost != "" {
+		cfg.Cfg.Host = *flagHost
+	} else {
+		cfg.Cfg.Host = "default"
+	}
+	cloudcare.CorsairHost = cfg.Cfg.Host
+
+	cfg.Cfg.ScrapeInterval = *flagScrapeInterval
+	cloudcare.CorsairScrapeInterval = *flagScrapeInterval
+
+	cfg.Cfg.ScrapeEnvInterval = *flagEnvInfoScrapeInterval
+	cloudcare.CorsairScrapeEnvInterval = *flagEnvInfoScrapeInterval
+
+	cfg.Cfg.Provider = *flagProvider
+
+	cfg.Cfg.RemoteHost = *flagRemoteHost
+	cloudcare.CorsairRemoteHost = cfg.Cfg.RemoteHost
+	cloudcare.CorsairMetricsWritePath = *flagRemoteMetricsWritePath
+	cloudcare.CorsairEnvWritePath = *flagRemoteEnvWritePath
 
 	setEnableCollectors(*flagEnableAllCollectors)
 
@@ -353,19 +385,11 @@ Golang Version: %s
 
 	checkArgs()
 
-	enables := loadEnableCollectors()
-
-	if cfg.Cfg.SingleMode == 1 {
-		var scu *url.URL
-
-		if err := cloudcare.Start(cfg.Cfg.RemoteHost, ""); err != nil {
-			panic(err)
-		}
-		if scu != nil {
-			time.Sleep(60 * 60 * time.Second)
-			return
-		}
+	if err := envinfo.InitOsquery(cloudcare.CorsairInstallPath); err != nil {
+		log.Warnf("init osquery failed: %s", err)
 	}
+
+	enables := loadEnableCollectors()
 
 	initWbem()
 
@@ -381,15 +405,40 @@ Golang Version: %s
 
 	collectors, err := loadCollectors(enables)
 	if err != nil {
-		log.Fatalf("Couldn't load collectors: %s", err)
+		log.Fatalf("%s", err)
 	}
 
-	log.Infof("Enabled collectors: %v", strings.Join(keys(collectors), ", "))
+	log.Infof("Enabled metric collectors: %v", strings.Join(keys(collectors), ", "))
 
 	nodeCollector := WmiCollector{collectors: collectors}
 	prometheus.MustRegister(nodeCollector)
 
 	http.Handle(*metricsPath, promhttp.Handler())
+
+	envRegister := prometheus.NewRegistry()
+	envcCollector := envinfo.NewEnvCollector()
+	envRegister.MustRegister(envcCollector)
+	http.Handle(*envinfoPath, promhttp.HandlerFor(envRegister, promhttp.HandlerOpts{}))
+
+	http.HandleFunc(*metaPath, func(w http.ResponseWriter, r *http.Request) {
+		hostName, err := os.Hostname()
+		if err != nil {
+			//log.Printf("[error] %s, ignored", err.Error())
+		}
+		j, err := json.Marshal(&cfg.Meta{
+			UploaderUID: cfg.Cfg.UploaderUID,
+			Host:        cfg.Cfg.Host,
+			HostName:    hostName,
+			Provider:    cfg.Cfg.Provider,
+		})
+		if err != nil {
+			log.Errorf("[error] %s, ignored", err.Error())
+			fmt.Fprintf(w, err.Error())
+		} else {
+			fmt.Fprintf(w, string(j))
+		}
+	})
+
 	http.HandleFunc("/health", healthCheck)
 	http.HandleFunc("/collectors", func(w http.ResponseWriter, r *http.Request) {
 		s := ""
@@ -406,8 +455,15 @@ Golang Version: %s
 		http.Redirect(w, r, *metricsPath, http.StatusMovedPermanently)
 	})
 
-	log.Infoln("Starting Corsair", version.Info())
-	log.Infoln("Build context", version.BuildContext())
+	//log.Infoln("Starting Corsair", version.Info())
+	//log.Infoln("Build context", version.BuildContext())
+
+	if cfg.Cfg.SingleMode == 1 {
+
+		if err := cloudcare.Start(); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	go func() {
 		log.Infoln("Starting server on", fmt.Sprintf("localhost:%d", *flagPort))
@@ -416,7 +472,7 @@ Golang Version: %s
 
 	for {
 		if <-stopCh {
-			log.Info("Shutting down Corsair")
+			log.Infoln("Shutting down Corsair")
 			break
 		}
 	}

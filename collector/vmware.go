@@ -18,6 +18,7 @@ func init() {
 
 // A VmwareCollector is a Prometheus collector for WMI Win32_PerfRawData_vmGuestLib_VMem/Win32_PerfRawData_vmGuestLib_VCPU metrics
 type VmwareCollector struct {
+	BaseErrControl
 	MemActive      *prometheus.Desc
 	MemBallooned   *prometheus.Desc
 	MemLimit       *prometheus.Desc
@@ -164,12 +165,17 @@ func NewVmwareCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *VmwareCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collectMem(ch); err != nil {
 		log.Error("failed collecting vmware memory metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	if desc, err := c.collectCpu(ch); err != nil {
 		log.Error("failed collecting vmware cpu metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil

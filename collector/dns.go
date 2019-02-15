@@ -20,6 +20,7 @@ func init() {
 
 // A DNSCollector is a Prometheus collector for WMI Win32_PerfRawData_DNS_DNS metrics
 type DNSCollector struct {
+	BaseErrControl
 	ZoneTransferRequestsReceived  *prometheus.Desc
 	ZoneTransferRequestsSent      *prometheus.Desc
 	ZoneTransferResponsesReceived *prometheus.Desc
@@ -186,8 +187,12 @@ func NewDNSCollector() (Collector, error) {
 // Collect sends the metric values for each metric
 // to the provided prometheus Metric channel.
 func (c *DNSCollector) Collect(ch chan<- prometheus.Metric) error {
+	if c.shouldSkip() {
+		return nil
+	}
 	if desc, err := c.collect(ch); err != nil {
 		log.Error("failed collecting dns metrics:", desc, err)
+		c.updateErrCounter()
 		return err
 	}
 	return nil
