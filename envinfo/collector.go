@@ -1,19 +1,33 @@
 package envinfo
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"log"
+	"os/exec"
 	"sync"
 	"time"
 	"wmi_exporter/collector"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
 )
 
 const namespace = "envinfo"
 
+type queryResult struct {
+	rawJson    string
+	formatJson []map[string]string
+}
+
 var (
-	factories      = make(map[string]collector.Collector)
+	OSQuerydPath = ""
+	// run osquery:  ./osqueryd -S --json 'select * from users'
+	//   -S: run as shell mode
+	//   --json: output result in json format
+
+	factories      = make(map[string]func(*envCfg) (collector.Collector, error))
 	collectorState = make(map[string]bool)
+	factoryArgs    = make(map[string]*envCfg)
 
 	envScrapeDurationDesc = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "collector_duration_seconds"),
@@ -29,26 +43,38 @@ var (
 	)
 )
 
-type EnvCollector struct {
+func registerCollector(collector string, isDefaultEnabled bool, factory func(*envCfg) (collector.Collector, error), arg *envCfg) {
+	collectorState[collector] = isDefaultEnabled
+	factories[collector] = factory
+	if arg != nil {
+		factoryArgs[collector] = arg
+	}
+}
+
+type EnvInfoCollector struct {
 	collectors map[string]collector.Collector
 }
 
-func NewEnvCollector() *EnvCollector {
+func NewEnvInfoCollector() *EnvInfoCollector {
 
-	coll := make(map[string]collector.Collector)
-
+	collectors := make(map[string]collector.Collector)
 	for k, enable := range collectorState {
 		if enable {
-			if c, ok := factories[k]; ok {
-				coll[k] = c
+			if fn, ok := factories[k]; ok {
+				c, err := fn(factoryArgs[k])
+				if err == nil {
+					collectors[k] = c
+				}
 			}
 		}
 	}
 
-	return &EnvCollector{coll}
+	return &EnvInfoCollector{
+		collectors: collectors,
+	}
 }
 
-func (coll EnvCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c EnvInfoCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- envScrapeDurationDesc
 	ch <- envScrapeSuccessDesc
 }
@@ -56,12 +82,13 @@ func (coll EnvCollector) Describe(ch chan<- *prometheus.Desc) {
 // Collect sends the collected metrics from each of the collectors to
 // prometheus. Collect could be called several times concurrently
 // and thus its run is protected by a single mutex.
-func (coll EnvCollector) Collect(ch chan<- prometheus.Metric) {
+func (ec EnvInfoCollector) Collect(ch chan<- prometheus.Metric) {
 	wg := sync.WaitGroup{}
-	wg.Add(len(coll.collectors))
-	for name, c := range coll.collectors {
-		go func(name string, c collector.Collector) {
-			execute(name, c, ch)
+	wg.Add(len(ec.collectors))
+
+	for name, c := range ec.collectors {
+		go func(name string, _c collector.Collector) {
+			execute(name, _c, ch)
 			wg.Done()
 		}(name, c)
 	}
@@ -73,16 +100,11 @@ func execute(name string, c collector.Collector, ch chan<- prometheus.Metric) {
 	begin := time.Now()
 	err := c.Collect(ch)
 	duration := time.Since(begin)
-	var success float64
 
 	if err != nil {
-		log.Errorf("collector %s failed after %fs: %s", name, duration.Seconds(), err)
-		success = 0
-	} else {
-		log.Debugf("collector %s succeeded after %fs.", name, duration.Seconds())
-		success = 1
+		log.Printf("[error] collector %s failed after %fs: %s", name, duration.Seconds(), err)
 	}
-	_ = success
+
 	// ch <- prometheus.MustNewConstMetric(
 	// 	envScrapeDurationDesc,
 	// 	prometheus.GaugeValue,
@@ -95,4 +117,25 @@ func execute(name string, c collector.Collector, ch chan<- prometheus.Metric) {
 	// 	success,
 	// 	name,
 	// )
+}
+
+func doQuery(sql string) (*queryResult, error) {
+	cmd := exec.Command(OSQuerydPath, []string{`-S`, `--json`, sql}...)
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var res queryResult
+	if !JsonFormat {
+		err = json.Unmarshal(out, &res.formatJson)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		res.rawJson = base64.RawURLEncoding.EncodeToString(out)
+	}
+
+	return &res, nil
 }

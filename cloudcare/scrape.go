@@ -16,17 +16,17 @@ import (
 )
 
 type scrape struct {
-	storage   *Storage
-	scrapeUrl string
+	storage *Storage
 }
 
 const acceptHeader = `application/openmetrics-text; version=0.0.1,text/plain;version=0.0.4;q=0.5,*/*;q=0.1`
 
 var userAgentHeader = fmt.Sprintf("Corsair/%s", git.Version)
 
-func (s *scrape) scrape(w io.Writer, envinfo bool) (string, error) {
+// @scrapeurl: i.e., http://0.0.0.0:9100/metrics
+func (s *scrape) scrape(w io.Writer, scrapeurl string) (string, error) {
 
-	req, err := http.NewRequest("GET", s.scrapeUrl, nil)
+	req, err := http.NewRequest("GET", scrapeurl, nil)
 	if err != nil {
 		return "", err
 	}

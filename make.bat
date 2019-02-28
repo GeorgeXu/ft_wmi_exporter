@@ -56,6 +56,11 @@ rd /s /q .\%PUB_DIR%\test 2>nul
 md .\build .\%PUB_DIR%\test 2>nul
 call:initgit
 go run make.go -kodo-host %TEST_KODO_HOST% -binary %BIN% -release test
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+copy .\env.json .\%PUB_DIR%\test
+copy .\fileinfo.json .\%PUB_DIR%\test
+cd .\sign
+sign.bat
 exit /b %ERRORLEVEL%
 
 :release
@@ -64,6 +69,11 @@ rd /s /q .\%PUB_DIR%\release 2>nul
 md .\build .\%PUB_DIR%\release 2>nul
 call:initgit
 go run make.go -kodo-host %RELEASE_KODO_HOST% -binary %BIN% -release release
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+copy .\env.json .\%PUB_DIR%\release
+copy .\fileinfo.json .\%PUB_DIR%\release
+cd .\sign
+sign.bat
 exit /b %ERRORLEVEL%
 
 

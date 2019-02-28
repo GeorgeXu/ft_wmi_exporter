@@ -9,16 +9,18 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
+	"wmi_exporter/cfg"
 	"wmi_exporter/git"
 
 	"github.com/Go-zh/net/context/ctxhttp"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/proto"
 	"github.com/klauspost/compress/snappy"
 	"github.com/prometheus/common/model"
@@ -34,7 +36,6 @@ type Client struct {
 	url     *config_util.URL
 	client  *http.Client
 	timeout time.Duration
-	logger  log.Logger
 }
 
 // ClientConfig configures a Client.
@@ -44,8 +45,14 @@ type ClientConfig struct {
 	HTTPClientConfig config_util.HTTPClientConfig
 }
 
+type KodoMsg struct {
+	Msg      string `json:"msg"`
+	Error    string `json:"error"`
+	Rejected bool   `json:"rejected"`
+}
+
 // NewClient creates a new Client.
-func NewClient(index int, l log.Logger, conf *ClientConfig) (*Client, error) {
+func NewClient(index int, conf *ClientConfig) (*Client, error) {
 	httpClient, err := config_util.NewClientFromConfig(conf.HTTPClientConfig, "remote_storage")
 	if err != nil {
 		return nil, err
@@ -56,7 +63,6 @@ func NewClient(index int, l log.Logger, conf *ClientConfig) (*Client, error) {
 		url:     conf.URL,
 		client:  httpClient,
 		timeout: time.Duration(conf.Timeout),
-		logger:  l,
 	}, nil
 }
 
@@ -70,23 +76,35 @@ type recoverableError struct {
 ///  key  ----- header "X-Prometheus-Key"
 ///  method ----  http request method ,eg PUT，GET，POST，HEAD，DELETE
 ///  skVal  -----  Access key secret
-func generateAuthorization(content []byte, contentType string, dateStr string, key string, method string, skVal string) string {
+func calcSig(content []byte, contentType string,
+	dateStr string, key string, method string, skVal string) string {
 	h := md5.New()
 	h.Write(content)
-	cipherStr := h.Sum(nil)
 
+	cipherStr := h.Sum(nil)
 	hex.EncodeToString(cipherStr)
+
 	mac := hmac.New(sha1.New, []byte(skVal))
-	mac.Write([]byte(method + "\n" + hex.EncodeToString(cipherStr) + "\n" + contentType + "\n" + dateStr + "\n" + key))
+	mac.Write([]byte(method + "\n" +
+		hex.EncodeToString(cipherStr) + "\n" +
+		contentType + "\n" +
+		dateStr + "\n" +
+		key))
 	sig := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	return sig
 }
+
+// Store sends a batch of samples to the HTTP endpoint.
+var (
+	storeTotal = 0
+)
 
 // Store sends a batch of samples to the HTTP endpoint.
 func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 
 	data, err := proto.Marshal(req)
 	if err != nil {
+		log.Printf("[error] %s", err.Error())
 		return err
 	}
 
@@ -97,7 +115,7 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	if err != nil {
 		// Errors from NewRequest are from unparseable URLs, so are not
 		// recoverable.
-		level.Error(c.logger).Log(err.Error())
+		log.Printf("[error] %s", err.Error())
 		return err
 	}
 
@@ -107,21 +125,18 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	contentEncode := "snappy"
 	date := time.Now().UTC().Format(http.TimeFormat)
 
-	sig := generateAuthorization(compressed, contentType, date, CorsairTeamID, http.MethodPost, CorsairSK)
+	sig := calcSig(compressed, contentType,
+		date, cfg.Cfg.TeamID, http.MethodPost, cfg.DecodedSK)
 
 	httpReq.Header.Set("Content-Encoding", contentEncode)
 	httpReq.Header.Set("Content-Type", contentType)
-	httpReq.Header.Set("X-Team-Id", CorsairTeamID)
-	httpReq.Header.Set("X-Uploader-Uid", CorsairUploaderUID)
-	httpReq.Header.Set("X-Version", "corsair/"+git.Version)
-	hostip := CorsairHost
-	if hostip == "" {
-		hostip = "default"
-	}
-	httpReq.Header.Set("X-Uploader-Ip", hostip)
+	httpReq.Header.Set("X-Version", cfg.ProbeName+"/"+git.Version)
+	httpReq.Header.Set("X-Team-Id", cfg.Cfg.TeamID)
+	httpReq.Header.Set("X-Uploader-Uid", cfg.Cfg.UploaderUID)
+	httpReq.Header.Set("X-Uploader-Ip", cfg.Cfg.Host)
+	httpReq.Header.Set("X-Hostname", HostName)
 	httpReq.Header.Set("Date", date)
-	httpReq.Header.Set("Authorization", "corsair "+CorsairAK+":"+sig)
-
+	httpReq.Header.Set("Authorization", "corsair "+cfg.Cfg.AK+":"+sig)
 	httpReq = httpReq.WithContext(ctx)
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
@@ -138,11 +153,23 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 
 	if httpResp.StatusCode/100 != 2 {
 		scanner := bufio.NewScanner(io.LimitReader(httpResp.Body, maxErrMsgLen))
-		line := ""
+		line := []byte(`{"error": "", "rejected": false, "msg": ""}`)
+
 		if scanner.Scan() {
-			line = scanner.Text()
+			line = scanner.Bytes()
+			var msg KodoMsg
+
+			if err := json.Unmarshal(line, &msg); err != nil {
+				// pass
+			} else {
+				if msg.Rejected {
+					log.Printf("[fatal] rejected by kodo: %s", msg.Error)
+					os.Exit(-1)
+				}
+			}
+
 		}
-		err = fmt.Errorf("server returned HTTP status %s: %s", httpResp.Status, line)
+		err = fmt.Errorf("server returned HTTP status %s: %s", httpResp.Status, string(line))
 	}
 	if httpResp.StatusCode/100 == 5 {
 		return recoverableError{err}

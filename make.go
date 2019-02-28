@@ -99,8 +99,8 @@ func init() {
 func runEnv(args, env []string) {
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	if env != nil {
+		cmd.Stderr = os.Stderr
 		cmd.Env = append(os.Environ(), env...)
 	}
 
@@ -109,6 +109,7 @@ func runEnv(args, env []string) {
 	if err != nil {
 		log.Fatalf("failed to run %v: %v", args, err)
 	}
+
 }
 
 func run(args ...string) {
@@ -134,11 +135,11 @@ func compileArch(bin, goos, goarch, dir string) {
 		"GOARCH=" + goarch,
 	}
 
-	if *flagCGO {
-		env = append(env, "CGO_ENABLED=1")
-	} else {
-		env = append(env, "CGO_ENABLED=0")
-	}
+	// if *flagCGO {
+	// 	env = append(env, "CGO_ENABLED=1")
+	// } else {
+	// 	env = append(env, "CGO_ENABLED=0")
+	// }
 
 	runEnv(args, env)
 }
@@ -201,12 +202,12 @@ func compile() {
 			log.Fatalf("failed to mkdir: %v", err)
 		}
 
-		ver := buildVersion
-		nfind := strings.Index(ver, "-")
-		if nfind != -1 {
-			ver = ver[:nfind]
-		}
-		ioutil.WriteFile(path.Join(dir, "version.txt"), []byte(ver), 0666)
+		// ver := buildVersion
+		// nfind := strings.Index(ver, "-")
+		// if nfind != -1 {
+		// 	ver = ver[:nfind]
+		// }
+		// ioutil.WriteFile(path.Join(dir, "version.txt"), []byte(ver), 0666)
 
 		dir, err = filepath.Abs(dir)
 		if err != nil {

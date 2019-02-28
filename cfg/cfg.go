@@ -5,27 +5,33 @@ import (
 	"encoding/base64"
 	"io/ioutil"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
-
-	"wmi_exporter/cloudcare"
 )
 
 type Config struct {
-	TeamID            string          `yaml:"team_id"`
-	UploaderUID       string          `yaml:"uploader_uid"`
-	AK                string          `yaml:"ak"`
-	SK                string          `yaml:"sk"`
-	Port              int             `yaml:"port"`
-	Collectors        map[string]bool `yaml:"collectors"`
-	SingleMode        int             `yaml:"single_mode"`
-	Host              string          `yaml:"host"`
-	ScrapeInterval    int             `yaml:"scrap_interval"`
-	ScrapeEnvInterval int             `yaml:"scrap_env_interval"`
-	RemoteHost        string          `yaml:"remote_host"`
-	EnableAll         int             `yaml:"enable_all"`
-	Provider          string          `yaml:"provider"`
+	TeamID      string `yaml:"team_id"`
+	UploaderUID string `yaml:"uploader_uid"`
+	AK          string `yaml:"ak"`
+	SK          string `yaml:"sk"`
+	Port        int    `yaml:"port"`
+	SingleMode  int    `yaml:"single_mode"`
+	Host        string `yaml:"host"`
+	RemoteHost  string `yaml:"remote_host"`
+	//EnableAll   int    `yaml:"enable_all"`
+	//EnvCfgFile      string `yaml:"env_cfg_file"`
+	//FileInfoCfgFile string `yaml:"fileinfo_cfg_file"`
+	Provider string `yaml:"provider"`
+
+	ScrapeMetricInterval   int `yaml:"scrap_metric_interval"`
+	ScrapeEnvInfoInterval  int `yaml:"scrap_env_info_interval"`
+	ScrapeFileInfoInterval int `yaml:"scrap_file_info_interval"`
+
+	Collectors map[string]bool `yaml:"collectors"`
+	QueueCfg   map[string]int  `yaml:"queue_cfg"`
 }
 
 type Meta struct {
@@ -36,11 +42,32 @@ type Meta struct {
 }
 
 var (
-	Cfg Config
+	Cfg = Config{
+		QueueCfg: map[string]int{
+			`batch_send_deadline`:  5,
+			`capacity`:             10000,
+			`max_retries`:          3,
+			`max_samples_per_send`: 100,
+		},
+		Host:                   `default`,
+		RemoteHost:             `http://kodo.cloudcare.com`,
+		SingleMode:             1,
+		Port:                   9100,
+		ScrapeMetricInterval:   60000,
+		ScrapeEnvInfoInterval:  900000,
+		ScrapeFileInfoInterval: 86400000,
+	}
+
+	DecodedSK = ""
+	ProbeName = `corsair`
 )
 
 // 导入 @f 中的配置
-func LoadConfig(f string) error {
+func LoadConfig() error {
+
+	exedir := filepath.Dir(os.Args[0])
+	f := filepath.Join(exedir, ProbeName+".yml")
+
 	data, err := ioutil.ReadFile(f)
 	if err != nil {
 		return err
@@ -50,14 +77,22 @@ func LoadConfig(f string) error {
 		return err
 	}
 
-	if err := initPromCfg(&Cfg); err != nil {
-		return err
+	if Cfg.Host == "" {
+		Cfg.Host = "default"
 	}
+
+	if Cfg.SK != "" {
+		DecodedSK = string(xorDecode(Cfg.SK))
+	}
+
 	return nil
 }
 
 // 当前配置写入配置文件
-func DumpConfig(f string) error {
+func DumpConfig() error {
+	exedir := filepath.Dir(os.Args[0])
+	f := filepath.Join(exedir, ProbeName+".yml")
+
 	c, err := yaml.Marshal(&Cfg)
 	if err != nil {
 		return err
@@ -124,44 +159,4 @@ func xorDecode(endata string) []byte {
 		dedata.WriteByte(data[index] ^ xorkeys[index])
 	}
 	return dedata.Bytes()[1 : 1+length]
-}
-
-// 从现有配置中初始化 prom 的配置
-func initPromCfg(c *Config) error {
-
-	if c.Host != "" {
-		cloudcare.CorsairHost = c.Host
-	}
-	if c.TeamID != "" {
-		cloudcare.CorsairTeamID = c.TeamID
-	}
-	if c.AK != "" {
-		cloudcare.CorsairAK = c.AK
-	}
-	if c.SK != "" {
-		cloudcare.CorsairSK = string(xorDecode(c.SK))
-	}
-
-	cloudcare.CorsairPort = c.Port
-
-	if c.UploaderUID != "" {
-		cloudcare.CorsairUploaderUID = c.UploaderUID
-	}
-
-	// if c.EnableAll == 1 {
-	// 	// 开启所有收集器
-	// 	for k, _ := range c.Collectors {
-	// 		collector.SetCollector(k, true)
-	// 	}
-	// } else {
-	// 	// 将配置中的开关设置到 collector 模块中
-	// 	for k, v := range c.Collectors {
-	// 		collector.SetCollector(k, v)
-	// 	}
-	// }
-
-	//cloudcare.PromCfg.GlobalConfig.ScrapeInterval =
-	//model.Duration(c.ScrapeInterval) * model.Duration(time.Second)
-
-	return nil
 }
