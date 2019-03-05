@@ -76,13 +76,13 @@ type recoverableError struct {
 ///  key  ----- header "X-Prometheus-Key"
 ///  method ----  http request method ,eg PUT，GET，POST，HEAD，DELETE
 ///  skVal  -----  Access key secret
-func calcSig(content []byte, contentType string,
+func CalcSig(content []byte, contentType string,
 	dateStr string, key string, method string, skVal string) string {
+
 	h := md5.New()
 	h.Write(content)
 
 	cipherStr := h.Sum(nil)
-	hex.EncodeToString(cipherStr)
 
 	mac := hmac.New(sha1.New, []byte(skVal))
 	mac.Write([]byte(method + "\n" +
@@ -91,6 +91,7 @@ func calcSig(content []byte, contentType string,
 		dateStr + "\n" +
 		key))
 	sig := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	log.Println("sig", sig)
 	return sig
 }
 
@@ -125,7 +126,7 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	contentEncode := "snappy"
 	date := time.Now().UTC().Format(http.TimeFormat)
 
-	sig := calcSig(compressed, contentType,
+	sig := CalcSig(compressed, contentType,
 		date, cfg.Cfg.TeamID, http.MethodPost, cfg.DecodedSK)
 
 	httpReq.Header.Set("Content-Encoding", contentEncode)
@@ -134,7 +135,7 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	httpReq.Header.Set("X-Team-Id", cfg.Cfg.TeamID)
 	httpReq.Header.Set("X-Uploader-Uid", cfg.Cfg.UploaderUID)
 	httpReq.Header.Set("X-Uploader-Ip", cfg.Cfg.Host)
-	httpReq.Header.Set("X-Hostname", HostName)
+	httpReq.Header.Set("X-Host-Name", HostName)
 	httpReq.Header.Set("Date", date)
 	httpReq.Header.Set("Authorization", "corsair "+cfg.Cfg.AK+":"+sig)
 	httpReq = httpReq.WithContext(ctx)

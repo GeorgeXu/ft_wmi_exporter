@@ -48,6 +48,7 @@ mkdir %PUB_DIR% 2>nul 1>&2
 
 if "%1%" == "test" goto test
 if "%1%" == "release" goto release
+if "%1%" == "preprod" goto preprod
 
 
 :test
@@ -59,6 +60,19 @@ go run make.go -kodo-host %TEST_KODO_HOST% -binary %BIN% -release test
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 copy .\env.json .\%PUB_DIR%\test
 copy .\fileinfo.json .\%PUB_DIR%\test
+::cd .\sign
+::sign.bat
+exit /b %ERRORLEVEL%
+
+:preprod
+echo "===== build preprod ===="
+rd /s /q .\%PUB_DIR%\preprod 2>nul
+md .\build .\%PUB_DIR%\preprod 2>nul
+call:initgit
+go run make.go -kodo-host %PREPROD_KODO_HOST% -binary %BIN% -release preprod
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+copy .\env.json .\%PUB_DIR%\preprod
+copy .\fileinfo.json .\%PUB_DIR%\preprod
 cd .\sign
 sign.bat
 exit /b %ERRORLEVEL%

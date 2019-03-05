@@ -3,9 +3,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -25,6 +27,7 @@ import (
 	"wmi_exporter/git"
 
 	"github.com/StackExchange/wmi"
+	"github.com/klauspost/compress/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -329,6 +332,83 @@ func updateCfg() error {
 	return nil
 }
 
+func checkIssueSource() (errmsg string) {
+
+	data := []byte("")
+	compressed := snappy.Encode(nil, data)
+
+	requrl := cfg.Cfg.RemoteHost
+	if requrl[len(requrl)-1] == '/' {
+		requrl = requrl[:len(requrl)-1]
+	}
+	requrl = requrl + "/v1/issue-source"
+
+	httpReq, err := http.NewRequest("POST", requrl, bytes.NewReader(compressed))
+	if err != nil {
+		errmsg = err.Error()
+		return
+	}
+
+	contentType := "application/x-protobuf"
+	contentEncode := "snappy"
+	date := time.Now().UTC().Format(http.TimeFormat)
+
+	sig := cloudcare.CalcSig(nil, contentType,
+		date, cfg.Cfg.TeamID, http.MethodPost, cfg.DecodedSK)
+
+	//log.Println("hostname:", cloudcare.HostName)
+
+	httpReq.Header.Set("Content-Encoding", contentEncode)
+	httpReq.Header.Set("Content-Type", contentType)
+	httpReq.Header.Set("X-Version", cfg.ProbeName+"/"+git.Version)
+	httpReq.Header.Set("X-Team-Id", cfg.Cfg.TeamID)
+	httpReq.Header.Set("X-Uploader-Uid", cfg.Cfg.UploaderUID)
+	httpReq.Header.Set("X-Uploader-Ip", cfg.Cfg.Host)
+	httpReq.Header.Set("X-Host-Name", cloudcare.HostName)
+	httpReq.Header.Set("Date", date)
+	httpReq.Header.Set("Authorization", "corsair "+cfg.Cfg.AK+":"+sig)
+
+	httpResp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		errmsg = err.Error()
+		return
+	}
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode == 404 {
+		errmsg = fmt.Sprintf("page not found: %s", requrl)
+		return
+	}
+
+	resdata, err := ioutil.ReadAll(httpResp.Body)
+	if err != nil {
+		errmsg = err.Error()
+		return
+	}
+
+	log.Printf("%s resp:%s", requrl, string(resdata))
+
+	m := make(map[string]string)
+
+	err = json.Unmarshal(resdata, &m)
+
+	if err != nil {
+		errmsg = err.Error()
+		return
+	}
+
+	e, ok := m["error"]
+	if !ok {
+		errmsg = "invalid response"
+		return
+	}
+	if e != "" {
+		errmsg = e
+		return
+	}
+	return
+}
+
 func initCfg() error {
 
 	if *flagTeamID == "" {
@@ -365,6 +445,7 @@ func initCfg() error {
 	cfg.Cfg.TeamID = *flagTeamID
 	cfg.Cfg.AK = *flagAK
 	cfg.Cfg.SK = cfg.XorEncode(*flagSK)
+	cfg.DecodedSK = *flagSK
 
 	if *flagPort != 0 {
 		cfg.Cfg.Port = *flagPort
@@ -376,6 +457,13 @@ func initCfg() error {
 	cfg.Cfg.Collectors = make(map[string]bool)
 	for _, v := range collectorItemList {
 		cfg.Cfg.Collectors[v.name] = v.enabled
+	}
+
+	if errmsg := checkIssueSource(); errmsg != "" {
+		log.Printf("check err: %s", errmsg)
+		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
+		ioutil.WriteFile(errpath, []byte(errmsg), 0666)
+		os.Exit(1024)
 	}
 
 	return cfg.DumpConfig()
