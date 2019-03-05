@@ -288,7 +288,7 @@ var (
 
 	flagVersionInfo = kingpin.Flag("version", "show version info").Bool()
 
-	flagProvider = kingpin.Flag("provider", "cloud service provider").Default(cfg.Cfg.Provider).String()
+	flagProvider = kingpin.Flag("provider", "cloud service provider").Default("aliyun").String()
 )
 
 func updateCfg() error {

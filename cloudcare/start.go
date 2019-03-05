@@ -29,7 +29,7 @@ func init() {
 
 func Start(remoteHost string, scrapehost string, interval int) error {
 
-	s, err := NewStorage(remoteHost, time.Duration(interval)*time.Second)
+	s, err := NewStorage(remoteHost, time.Duration(interval)*time.Millisecond)
 	if err != nil {
 		return err
 	}
