@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,7 +26,6 @@ import (
 	"wmi_exporter/git"
 
 	"github.com/StackExchange/wmi"
-	"github.com/klauspost/compress/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -277,6 +275,8 @@ var (
 	flagEnableAllCollectors = kingpin.Flag("enabled", `enabled collectors`).String()
 	//flagEnableAll           = kingpin.Flag("enable-all", "enable all collectors").Default(fmt.Sprintf("%d", cfg.Cfg.EnableAll)).Int()
 
+	flagUploaderUID = kingpin.Flag("uploader-uid", "uuid").String()
+
 	flagRemoteHost = kingpin.Flag("remote-host", `data bridge addr`).String()
 
 	flagRemoteMetricsWritePath = kingpin.Flag("metric-path", ``).Default("v1/write").String()
@@ -332,83 +332,6 @@ func updateCfg() error {
 	return nil
 }
 
-func checkIssueSource() (errmsg string) {
-
-	data := []byte("")
-	compressed := snappy.Encode(nil, data)
-
-	requrl := cfg.Cfg.RemoteHost
-	if requrl[len(requrl)-1] == '/' {
-		requrl = requrl[:len(requrl)-1]
-	}
-	requrl = requrl + "/v1/issue-source"
-
-	httpReq, err := http.NewRequest("POST", requrl, bytes.NewReader(compressed))
-	if err != nil {
-		errmsg = err.Error()
-		return
-	}
-
-	contentType := "application/x-protobuf"
-	contentEncode := "snappy"
-	date := time.Now().UTC().Format(http.TimeFormat)
-
-	sig := cloudcare.CalcSig(nil, contentType,
-		date, cfg.Cfg.TeamID, http.MethodPost, cfg.DecodedSK)
-
-	//log.Println("hostname:", cloudcare.HostName)
-
-	httpReq.Header.Set("Content-Encoding", contentEncode)
-	httpReq.Header.Set("Content-Type", contentType)
-	httpReq.Header.Set("X-Version", cfg.ProbeName+"/"+git.Version)
-	httpReq.Header.Set("X-Team-Id", cfg.Cfg.TeamID)
-	httpReq.Header.Set("X-Uploader-Uid", cfg.Cfg.UploaderUID)
-	httpReq.Header.Set("X-Uploader-Ip", cfg.Cfg.Host)
-	httpReq.Header.Set("X-Host-Name", cloudcare.HostName)
-	httpReq.Header.Set("Date", date)
-	httpReq.Header.Set("Authorization", "corsair "+cfg.Cfg.AK+":"+sig)
-
-	httpResp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		errmsg = err.Error()
-		return
-	}
-	defer httpResp.Body.Close()
-
-	if httpResp.StatusCode == 404 {
-		errmsg = fmt.Sprintf("page not found: %s", requrl)
-		return
-	}
-
-	resdata, err := ioutil.ReadAll(httpResp.Body)
-	if err != nil {
-		errmsg = err.Error()
-		return
-	}
-
-	log.Printf("%s resp:%s", requrl, string(resdata))
-
-	m := make(map[string]string)
-
-	err = json.Unmarshal(resdata, &m)
-
-	if err != nil {
-		errmsg = err.Error()
-		return
-	}
-
-	e, ok := m["error"]
-	if !ok {
-		errmsg = "invalid response"
-		return
-	}
-	if e != "" {
-		errmsg = e
-		return
-	}
-	return
-}
-
 func initCfg() error {
 
 	if *flagTeamID == "" {
@@ -420,14 +343,6 @@ func initCfg() error {
 	if *flagSK == "" {
 		log.Fatalln("[fatal] invalid SK")
 	}
-
-	// 客户端自行生成 ID, 而不是 kodo 下发
-	uid, err := uuid.NewV4()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	cfg.Cfg.UploaderUID = fmt.Sprintf("uid-%s", uid.String())
 
 	cfg.Cfg.SingleMode = *flagSingleMode
 	if *flagHostIP != "" {
@@ -459,10 +374,23 @@ func initCfg() error {
 		cfg.Cfg.Collectors[v.name] = v.enabled
 	}
 
-	if errmsg := checkIssueSource(); errmsg != "" {
-		log.Printf("check err: %s", errmsg)
+	bcheck := false
+	if *flagUploaderUID != "" {
+		cfg.Cfg.UploaderUID = *flagUploaderUID
+		bcheck = true
+	} else {
+		// 客户端自行生成 ID, 而不是 kodo 下发
+		uid, err := uuid.NewV4()
+		if err != nil {
+			log.Fatal(err)
+		}
+		cfg.Cfg.UploaderUID = fmt.Sprintf("uid-%s", uid.String())
+	}
+
+	if err := cloudcare.CreateIssueSource(bcheck); err != nil {
+		log.Printf("check err: %s", err)
 		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
-		ioutil.WriteFile(errpath, []byte(errmsg), 0666)
+		ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
 		os.Exit(1024)
 	}
 
@@ -497,6 +425,13 @@ Golang Version: %s
 		log.Fatalf("[error] load config fail: %s", err)
 	}
 	cfg.DumpConfig()
+
+	if err := cloudcare.CreateIssueSource(false); err != nil {
+		log.Printf("check err: %s", err)
+		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
+		ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
+		os.Exit(1024)
+	}
 
 	if *printCollectors {
 		collectorNames := make(sort.StringSlice, 0, len(collector.Factories))
@@ -625,7 +560,7 @@ Golang Version: %s
 	}
 
 	go func() {
-		listenAddress := fmt.Sprintf("0.0.0.0:%d", cfg.Cfg.Port)
+		listenAddress := fmt.Sprintf("localhost:%d", cfg.Cfg.Port)
 		if err := http.ListenAndServe(listenAddress, nil); err != nil {
 			log.Fatalf("[fatal] %s", err.Error())
 		}
