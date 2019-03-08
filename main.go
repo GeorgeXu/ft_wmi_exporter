@@ -324,6 +324,14 @@ func updateCfg() error {
 			cfg.Cfg.Collectors[v.name] = v.enabled
 		}
 	}
+
+	if err := cloudcare.CreateIssueSource(false); err != nil {
+		log.Printf("check err: %s", err)
+		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
+		ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
+		os.Exit(1024)
+	}
+
 	err = cfg.DumpConfig()
 	if err != nil {
 		log.Fatalf("[fatal] dump config failed: %s", err)
@@ -525,7 +533,7 @@ Golang Version: %s
 
 		if cfg.Cfg.SingleMode == 1 {
 			// metric 数据收集和上报
-			metricsScrapeUrl := fmt.Sprintf("http://0.0.0.0:%d%s", cfg.Cfg.Port, *metricsPath)
+			metricsScrapeUrl := fmt.Sprintf("http://localhost:%d%s", cfg.Cfg.Port, *metricsPath)
 			postURLMetric := fmt.Sprintf("%s%s", cfg.Cfg.RemoteHost, "/v1/write")
 
 			log.Printf("[debug] metric url: %s", metricsScrapeUrl)
@@ -535,7 +543,7 @@ Golang Version: %s
 			}
 
 			// env info 收集器
-			envScrapeUrl := fmt.Sprintf("http://0.0.0.0:%d%s", cfg.Cfg.Port, *envinfoPath)
+			envScrapeUrl := fmt.Sprintf("http://localhost:%d%s", cfg.Cfg.Port, *envinfoPath)
 			postURLEnv := fmt.Sprintf("%s%s", cfg.Cfg.RemoteHost, "/v1/write/env")
 
 			log.Printf("[debug] env-info url: %s", envScrapeUrl)
