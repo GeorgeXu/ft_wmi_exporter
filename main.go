@@ -306,6 +306,7 @@ func updateCfg() error {
 	}
 	if *flagSK != "" {
 		cfg.Cfg.SK = cfg.XorEncode(*flagSK)
+		cfg.DecodedSK = *flagSK
 	}
 	if *flagPort != 0 {
 		cfg.Cfg.Port = *flagPort
