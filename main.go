@@ -422,6 +422,13 @@ Golang Version: %s
 		return
 	}
 
+	logfilepath := fmt.Sprintf("%s%s.log", filepath.Dir(os.Args[0]), cfg.ProbeName)
+	rw, err := cloudcare.SetLog(logfilepath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rw.Close()
+
 	if *flagInit {
 		initCfg()
 		return
@@ -455,6 +462,11 @@ Golang Version: %s
 		return
 	}
 
+	collectors, err := loadCollectors()
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
+
 	initWbem()
 
 	isInteractive, err := svc.IsAnInteractiveSession()
@@ -465,11 +477,6 @@ Golang Version: %s
 	stopCh := make(chan bool)
 	if !isInteractive {
 		go svc.Run(serviceName, &wmiExporterService{stopCh: stopCh})
-	}
-
-	collectors, err := loadCollectors()
-	if err != nil {
-		log.Fatalf("%s", err)
 	}
 
 	log.Printf("Enabled metric collectors: %v", strings.Join(keys(collectors), ", "))
