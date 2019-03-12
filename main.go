@@ -422,7 +422,7 @@ Golang Version: %s
 		return
 	}
 
-	logfilepath := fmt.Sprintf("%s%s.log", filepath.Dir(os.Args[0]), cfg.ProbeName)
+	logfilepath := filepath.Join(filepath.Dir(os.Args[0]), cfg.ProbeName+".log")
 	rw, err := cloudcare.SetLog(logfilepath)
 	if err != nil {
 		log.Fatal(err)

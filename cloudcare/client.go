@@ -127,7 +127,7 @@ func CreateIssueSource(check bool) error {
 	sig := CalcSig(nil, contentType,
 		date, cfg.Cfg.TeamID, http.MethodPost, cfg.DecodedSK)
 
-	//log.Println("hostname:", cloudcare.HostName)
+	log.Println("[info] hostname:", HostName)
 
 	httpReq.Header.Set("Content-Encoding", contentEncode)
 	httpReq.Header.Set("Content-Type", contentType)
@@ -202,7 +202,7 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	sig := CalcSig(compressed, contentType,
 		date, cfg.Cfg.TeamID, http.MethodPost, cfg.DecodedSK)
 
-	log.Println("HostName：", HostName)
+	//log.Println("HostName：", HostName)
 
 	httpReq.Header.Set("Content-Encoding", contentEncode)
 	httpReq.Header.Set("Content-Type", contentType)
