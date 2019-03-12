@@ -223,7 +223,6 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	if err != nil {
 		// Errors from client.Do are from (for example) network errors, so are
 		// recoverable.
-
 		return recoverableError{err}
 	}
 	defer httpResp.Body.Close()
