@@ -440,6 +440,7 @@ Golang Version: %s
 	if err := cfg.LoadConfig(); err != nil {
 		log.Fatalf("[error] load config fail: %s", err)
 	}
+	
 	cfg.DumpConfig()
 
 	if err := cloudcare.CreateIssueSource(false); err != nil {
