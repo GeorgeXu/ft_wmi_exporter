@@ -443,11 +443,13 @@ Golang Version: %s
 
 	cfg.DumpConfig()
 
-	if err := cloudcare.CreateIssueSource(false); err != nil {
-		log.Printf("check err: %s", err)
-		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
-		ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
-		os.Exit(1024)
+	if cfg.Cfg.SingleMode > 0 {
+		if err := cloudcare.CreateIssueSource(false); err != nil {
+			log.Printf("check err: %s", err)
+			errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
+			ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
+			os.Exit(1024)
+		}
 	}
 
 	if *printCollectors {
@@ -579,7 +581,10 @@ Golang Version: %s
 	go func() {
 		listenAddress := fmt.Sprintf("%s:%d", cfg.Cfg.BindAddr, cfg.Cfg.Port)
 		if err := http.ListenAndServe(listenAddress, nil); err != nil {
-			log.Fatalf("[fatal] %s", err.Error())
+			log.Printf("[fatal] %s", err.Error())
+			errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
+			ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
+			os.Exit(1024)
 		}
 	}()
 

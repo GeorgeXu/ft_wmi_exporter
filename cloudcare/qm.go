@@ -399,7 +399,7 @@ func (s *shards) runShard(i int) {
 
 			if len(pendingSamples) >= batchSize {
 
-				log.Printf("[debug] total samples: %d", total)
+				//log.Printf("[debug] total samples: %d", total)
 
 				s.sendSamples(pendingSamples[:batchSize])
 				pendingSamples = pendingSamples[batchSize:]

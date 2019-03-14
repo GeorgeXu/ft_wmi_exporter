@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const namespace = "kv-node" //"envinfo"
+const namespace = "kv_node" //"envinfo"
 
 type queryResult struct {
 	rawJson    string

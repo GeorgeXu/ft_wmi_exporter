@@ -18,7 +18,7 @@ type Config struct {
 	AK          string `yaml:"ak"`
 	SK          string `yaml:"sk"`
 	Port        int    `yaml:"port"`
-	BindAddr    string `yaml:"bind_addr"`
+	BindAddr    string `yaml:"bind_addr,omitempty"`
 	SingleMode  int    `yaml:"single_mode"`
 	Host        string `yaml:"host"`
 	RemoteHost  string `yaml:"remote_host"`
