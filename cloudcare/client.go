@@ -1,6 +1,7 @@
 package cloudcare
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/hmac"
@@ -10,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -176,6 +178,8 @@ func CreateIssueSource(check bool) error {
 	return nil
 }
 
+var ErrorCodeRejected = "carrier.kodo.rejected"
+
 // Store sends a batch of samples to the HTTP endpoint.
 func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 
@@ -231,35 +235,25 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode/100 != 2 {
-		if errdata, err := ioutil.ReadAll(httpReq.Body); err == nil {
-			var resJson issueResp
-			if json.Unmarshal(errdata, &resJson) == nil {
-				if resJson.Code == 403 {
+
+		scanner := bufio.NewScanner(io.LimitReader(httpResp.Body, maxErrMsgLen))
+		line := []byte(`{"code": "", "errorCode": "", "message": ""}`)
+
+		if scanner.Scan() {
+			line = scanner.Bytes()
+			var msg issueResp
+
+			if err := json.Unmarshal(line, &msg); err != nil {
+				// pass
+			} else {
+				if msg.ErrorCode == ErrorCodeRejected {
+					log.Printf("[fatal] rejected by kodo: %s", msg.Message)
 					os.Exit(1024)
 				}
 			}
 		}
+		err = fmt.Errorf("server returned HTTP status %s: %s", httpResp.Status, string(line))
 
-		// scanner := bufio.NewScanner(io.LimitReader(httpResp.Body, maxErrMsgLen))
-		// line := []byte(`{"error": "", "rejected": false, "msg": ""}`)
-
-		// if scanner.Scan() {
-		// 	line = scanner.Bytes()
-		// 	var msg KodoMsg
-
-		// 	if err := json.Unmarshal(line, &msg); err != nil {
-		// 		// pass
-		// 	} else {
-		// 		if msg.Rejected {
-		// 			log.Printf("[fatal] rejected by kodo: %s", msg.Error)
-		// 			os.Exit(-1)
-		// 		}
-		// 	}
-
-		// }
-
-		err = fmt.Errorf("server returned HTTP status %s", httpResp.Status)
-		log.Println(err.Error())
 	}
 	if httpResp.StatusCode/100 == 5 {
 		return recoverableError{err}

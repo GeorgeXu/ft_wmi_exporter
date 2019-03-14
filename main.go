@@ -563,7 +563,7 @@ Golang Version: %s
 
 		if cfg.Cfg.SingleMode == 1 {
 			// metric 数据收集和上报
-			metricsScrapeUrl := fmt.Sprintf("http://localhost:%d%s", cfg.Cfg.Port, *metricsPath)
+			metricsScrapeUrl := fmt.Sprintf("http://%s:%d%s", cfg.Cfg.BindAddr, cfg.Cfg.Port, *metricsPath)
 			postURLMetric := fmt.Sprintf("%s%s", cfg.Cfg.RemoteHost, "/v1/write")
 
 			log.Printf("[debug] metric url: %s", metricsScrapeUrl)
@@ -573,7 +573,7 @@ Golang Version: %s
 			}
 
 			// env info 收集器
-			envScrapeUrl := fmt.Sprintf("http://localhost:%d%s", cfg.Cfg.Port, *envinfoPath)
+			envScrapeUrl := fmt.Sprintf("http://%s:%d%s", cfg.Cfg.BindAddr, cfg.Cfg.Port, *envinfoPath)
 			postURLEnv := fmt.Sprintf("%s%s", cfg.Cfg.RemoteHost, "/v1/write/env")
 
 			log.Printf("[debug] env-info url: %s", envScrapeUrl)
