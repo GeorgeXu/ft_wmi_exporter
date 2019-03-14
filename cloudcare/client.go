@@ -168,7 +168,7 @@ func CreateIssueSource(check bool) error {
 
 	if m.Code != 200 {
 		log.Printf("resp: %s", string(resdata))
-		return fmt.Errorf("%s", m.Message)
+		return fmt.Errorf("%s", m.ErrorCode)
 	}
 	return nil
 }
@@ -256,6 +256,7 @@ func (c *Client) Store(ctx context.Context, req *prompb.WriteRequest) error {
 		// }
 
 		err = fmt.Errorf("server returned HTTP status %s", httpResp.Status)
+		log.Println(err.Error())
 	}
 	if httpResp.StatusCode/100 == 5 {
 		return recoverableError{err}

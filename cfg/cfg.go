@@ -85,6 +85,18 @@ func LoadConfig() error {
 		DecodedSK = string(xorDecode(Cfg.SK))
 	}
 
+	if Cfg.ScrapeMetricInterval < 15000 {
+		Cfg.ScrapeMetricInterval = 15000
+	} else if Cfg.ScrapeMetricInterval > 15*60*1000 {
+		Cfg.ScrapeMetricInterval = 15 * 60 * 1000
+	}
+
+	if Cfg.ScrapeEnvInfoInterval < 60*1000 {
+		Cfg.ScrapeEnvInfoInterval = 60 * 1000
+	} else if Cfg.ScrapeEnvInfoInterval > 60*60*1000 {
+		Cfg.ScrapeEnvInfoInterval = 60 * 60 * 1000
+	}
+
 	return nil
 }
 
