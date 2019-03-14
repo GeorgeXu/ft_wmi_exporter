@@ -18,6 +18,7 @@ type Config struct {
 	AK          string `yaml:"ak"`
 	SK          string `yaml:"sk"`
 	Port        int    `yaml:"port"`
+	BindAddr    string `yaml:"bind_addr"`
 	SingleMode  int    `yaml:"single_mode"`
 	Host        string `yaml:"host"`
 	RemoteHost  string `yaml:"remote_host"`
@@ -53,6 +54,7 @@ var (
 		RemoteHost:             `http://kodo.cloudcare.com`,
 		SingleMode:             1,
 		Port:                   9100,
+		BindAddr:               "localhost",
 		ScrapeMetricInterval:   60000,
 		ScrapeEnvInfoInterval:  900000,
 		ScrapeFileInfoInterval: 86400000,
@@ -83,6 +85,10 @@ func LoadConfig() error {
 
 	if Cfg.SK != "" {
 		DecodedSK = string(xorDecode(Cfg.SK))
+	}
+
+	if Cfg.BindAddr == "" {
+		Cfg.BindAddr = "localhost"
 	}
 
 	if Cfg.ScrapeMetricInterval < 15000 {

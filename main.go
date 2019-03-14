@@ -577,7 +577,7 @@ Golang Version: %s
 	}
 
 	go func() {
-		listenAddress := fmt.Sprintf("localhost:%d", cfg.Cfg.Port)
+		listenAddress := fmt.Sprintf("%s:%d", cfg.Cfg.BindAddr, cfg.Cfg.Port)
 		if err := http.ListenAndServe(listenAddress, nil); err != nil {
 			log.Fatalf("[fatal] %s", err.Error())
 		}
