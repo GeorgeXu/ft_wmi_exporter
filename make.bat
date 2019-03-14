@@ -60,8 +60,8 @@ go run make.go -kodo-host %TEST_KODO_HOST% -binary %BIN% -release test
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 copy .\env.json .\%PUB_DIR%\test
 copy .\fileinfo.json .\%PUB_DIR%\test
-::cd .\sign
-::sign.bat
+cd .\sign
+sign.bat
 exit /b %ERRORLEVEL%
 
 :preprod
