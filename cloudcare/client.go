@@ -146,7 +146,7 @@ func CreateIssueSource(check bool) error {
 	}
 	defer httpResp.Body.Close()
 
-	if check && httpResp.StatusCode == 200 {
+	if httpResp.StatusCode == 200 {
 		return nil
 	}
 
@@ -163,13 +163,16 @@ func CreateIssueSource(check bool) error {
 
 	err = json.Unmarshal(resdata, &m)
 	if err != nil {
+		err = fmt.Errorf("%s status: %s, body: %s", httpReq.URL.Path, httpResp.Status, string(resdata))
+		log.Printf(err.Error())
 		return err
 	}
 
 	if m.Code != 200 {
-		log.Printf("resp: %s", string(resdata))
+		log.Printf("%s status: %s, body: %s", httpReq.URL.Path, httpResp.Status, string(resdata))
 		return fmt.Errorf("%s", m.ErrorCode)
 	}
+
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -326,6 +327,8 @@ func updateCfg() error {
 		}
 	}
 
+	//checkPort(cfg.Cfg.Port)
+
 	if err := cloudcare.CreateIssueSource(false); err != nil {
 		log.Printf("check err: %s", err)
 		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
@@ -396,14 +399,28 @@ func initCfg() error {
 		cfg.Cfg.UploaderUID = fmt.Sprintf("uid-%s", uid.String())
 	}
 
+	checkPort(cfg.Cfg.Port)
+
 	if err := cloudcare.CreateIssueSource(bcheck); err != nil {
-		log.Printf("check err: %s", err)
+		log.Printf("init check err: %s", err)
 		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
 		ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
 		os.Exit(1024)
 	}
 
 	return cfg.DumpConfig()
+}
+
+func checkPort(port int) error {
+	chkconn, _ := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
+	if chkconn != nil {
+		chkconn.Close()
+		log.Printf("[error] port %s has been used", port)
+		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
+		ioutil.WriteFile(errpath, []byte("carrier.kodo.portused"), 0666)
+		os.Exit(1024)
+	}
+	return nil
 }
 
 func main() {
@@ -442,6 +459,8 @@ Golang Version: %s
 	}
 
 	cfg.DumpConfig()
+
+	checkPort(cfg.Cfg.Port)
 
 	if cfg.Cfg.SingleMode > 0 {
 		if err := cloudcare.CreateIssueSource(false); err != nil {
