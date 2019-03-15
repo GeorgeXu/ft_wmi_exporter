@@ -417,7 +417,7 @@ func checkPort(port int) error {
 	chkconn, _ := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
 	if chkconn != nil {
 		chkconn.Close()
-		log.Printf("[error] port %s has been used", port)
+		log.Printf("[error] port %s has been used!", port)
 		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
 		ioutil.WriteFile(errpath, []byte("carrier.kodo.portused"), 0666)
 		os.Exit(1024)
