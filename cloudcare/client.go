@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"wmi_exporter/cfg"
@@ -98,7 +99,97 @@ var (
 type issueResp struct {
 	Code      int    `json:"code"`
 	ErrorCode string `json:"errorCode"`
-	Message   string `json:"message"`
+	Message   string `json:"message,omitempty"`
+}
+
+type versionResData struct {
+	DownloadUrl string `json:"download_url"`
+	Single      bool   `json:"single"`
+	Size        int    `json:"size"`
+	UploaderID  string `json:"uploader_id,omitempty"`
+	AK          string `json:"ak,omitempty"`
+}
+
+type versionResponse struct {
+	Code      int            `json:"code"`
+	ErrorCode string         `json:"errorCode"`
+	Message   string         `json:"message,omitempty"`
+	Content   versionResData `json:"content,omitempty"`
+}
+
+func GetNewVersionAddr() error {
+
+	//data := []byte("")
+	//compressed := snappy.Encode(nil, data)
+
+	requrl := cfg.Cfg.RemoteHost
+	if requrl[len(requrl)-1] == '/' {
+		requrl = requrl[:len(requrl)-1]
+	}
+
+	requrl = requrl + "/v1/probe/install?platform=windows&name=corsair"
+
+	httpReq, err := http.NewRequest("GET", requrl, nil)
+	if err != nil {
+		return err
+	}
+
+	contentType := "application/x-protobuf"
+	contentEncode := "snappy"
+	date := time.Now().UTC().Format(http.TimeFormat)
+
+	sig := CalcSig(nil, contentType,
+		date, cfg.Cfg.TeamID, http.MethodGet, cfg.DecodedSK)
+
+	//log.Println("[info] hostname:", HostName)
+
+	httpReq.Header.Set("Content-Encoding", contentEncode)
+	httpReq.Header.Set("Content-Type", contentType)
+	httpReq.Header.Set("X-Version", cfg.ProbeName+"/"+git.Version)
+	httpReq.Header.Set("X-Team-Id", cfg.Cfg.TeamID)
+	httpReq.Header.Set("X-Uploader-Uid", cfg.Cfg.UploaderUID)
+	httpReq.Header.Set("X-Uploader-Ip", cfg.Cfg.Host)
+	httpReq.Header.Set("X-Host-Name", HostName)
+	httpReq.Header.Set("X-App-Name", cfg.ProbeName)
+	httpReq.Header.Set("Date", date)
+	httpReq.Header.Set("Authorization", "kodo "+cfg.Cfg.AK+":"+sig)
+
+	httpResp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode == 404 {
+		return fmt.Errorf("page not found: %s", requrl)
+	}
+
+	if httpResp.StatusCode == 200 {
+
+		var r versionResponse
+
+		resdata, err := ioutil.ReadAll(httpResp.Body)
+
+		if err != nil {
+			return err
+		}
+
+		if err := json.Unmarshal(resdata, &r); err != nil {
+			return err
+		}
+
+		log.Println("downloadurl:", r.Content.DownloadUrl)
+
+		urlpath := filepath.Join(filepath.Dir(os.Args[0]), "dowload_url")
+		ioutil.WriteFile(urlpath, []byte(r.Content.DownloadUrl), 0666)
+
+		return nil
+	}
+
+	err = fmt.Errorf("%s status: %s", httpReq.URL.Path, httpResp.Status)
+	log.Println(err.Error())
+
+	return err
 }
 
 func CreateIssueSource(check bool) error {

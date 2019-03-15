@@ -290,6 +290,8 @@ var (
 	flagVersionInfo = kingpin.Flag("version", "show version info").Bool()
 
 	flagProvider = kingpin.Flag("provider", "cloud service provider").Default("aliyun").String()
+
+	flagGetDownloadURL = kingpin.Flag("get-download-url", "get downlaod url").Bool()
 )
 
 func updateCfg() error {
@@ -456,6 +458,11 @@ Golang Version: %s
 
 	if err := cfg.LoadConfig(); err != nil {
 		log.Fatalf("[error] load config fail: %s", err)
+	}
+
+	if *flagGetDownloadURL {
+		cloudcare.GetNewVersionAddr()
+		return
 	}
 
 	cfg.DumpConfig()
