@@ -461,7 +461,9 @@ Golang Version: %s
 	}
 
 	if *flagGetDownloadURL {
-		cloudcare.GetNewVersionAddr()
+		if err := cloudcare.GetNewVersionAddr(); err != nil {
+			log.Printf("get download url error: %s", err.Error())
+		}
 		return
 	}
 
