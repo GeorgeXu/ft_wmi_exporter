@@ -119,9 +119,6 @@ type versionResponse struct {
 
 func GetNewVersionAddr() error {
 
-	//data := []byte("")
-	//compressed := snappy.Encode(nil, data)
-
 	requrl := cfg.Cfg.RemoteHost
 	if requrl[len(requrl)-1] == '/' {
 		requrl = requrl[:len(requrl)-1]
