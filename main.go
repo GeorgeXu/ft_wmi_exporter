@@ -329,8 +329,6 @@ func updateCfg() error {
 		}
 	}
 
-	//checkPort(cfg.Cfg.Port)
-
 	if err := cloudcare.CreateIssueSource(false); err != nil {
 		log.Printf("check err: %s", err)
 		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")

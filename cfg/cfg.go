@@ -51,7 +51,7 @@ var (
 			`max_samples_per_send`: 100,
 		},
 		Host:                   `default`,
-		RemoteHost:             `http://kodo.cloudcare.com`,
+		RemoteHost:             `https://kodo.cloudcare.cn`,
 		SingleMode:             1,
 		Port:                   9100,
 		BindAddr:               "localhost",
