@@ -253,7 +253,7 @@ func initWbem() {
 
 var (
 	metricsPath  = kingpin.Flag("web.telemetry.path", "URL path for surfacing collected metrics.").Default("/metrics").String()
-	envinfoPath  = kingpin.Flag("web.telemetry.envpath", "URL path for surfacing collected envinfo.").Default("/env_infos").String()
+	envinfoPath  = kingpin.Flag("web.telemetry.envpath", "URL path for surfacing collected envinfo.").Default("/kvs").String()
 	fileInfoPath = kingpin.Flag("web.telemetry-file-info-path", "Path under which to expose file info.").Default("/file_infos").String()
 	metaPath     = kingpin.Flag("web.meta-path", "Path under which to expose meta info.").Default("/meta").String()
 

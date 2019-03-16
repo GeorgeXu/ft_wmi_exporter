@@ -54,7 +54,7 @@ type envCfg struct {
 }
 
 type envCfgs struct {
-	Envs []*envCfg `json:"envs"`
+	Envs []*envCfg `json:"kvs"`
 }
 
 type envCollector struct {
