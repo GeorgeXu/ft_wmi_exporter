@@ -523,7 +523,7 @@ Golang Version: %s
 
 	// init envinfo configure
 	envinfo.OSQuerydPath = filepath.Join(filepath.Dir(os.Args[0]), `osqueryd.exe`)
-	envinfo.Init(filepath.Join(filepath.Dir(os.Args[0]), `env.json`))
+	envinfo.Init(filepath.Join(filepath.Dir(os.Args[0]), `kv.json`))
 
 	envRegister := prometheus.NewRegistry()
 	envcCollector := envinfo.NewEnvInfoCollector()
