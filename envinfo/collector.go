@@ -119,6 +119,11 @@ func execute(name string, c collector.Collector, ch chan<- prometheus.Metric) {
 	// )
 }
 
+//for debug
+type KVUser struct {
+	Username string `json:"username"`
+}
+
 func doQuery(sql string) (*queryResult, error) {
 	cmd := exec.Command(OSQuerydPath, []string{`-S`, `--json`, sql}...)
 
@@ -128,12 +133,20 @@ func doQuery(sql string) (*queryResult, error) {
 	}
 
 	var res queryResult
+	//集群模式下
 	if !JsonFormat {
 		err = json.Unmarshal(out, &res.formatJson)
 		if err != nil {
 			return nil, err
 		}
 	} else {
+		//for debug
+		// if strings.Contains(sql, "from users") {
+		// 	var kvusers []KVUser
+		// 	if err := json.Unmarshal(out, &kvusers); err == nil {
+		// 		log.Println("[debug] kv_users:", kvusers)
+		// 	}
+		// }
 		res.rawJson = base64.RawURLEncoding.EncodeToString(out)
 	}
 

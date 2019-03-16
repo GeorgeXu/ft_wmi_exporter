@@ -11,7 +11,7 @@ import (
 
 const (
 	MaxTryCount    = 3
-	MaxTryInterval = 60 * 3
+	MaxTryInterval = 60 * 30
 )
 
 type BaseErrControl struct {
