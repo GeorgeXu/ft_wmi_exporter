@@ -6,7 +6,6 @@ import (
 	"log"
 	"runtime"
 	"wmi_exporter/cfg"
-	"wmi_exporter/cloudcare"
 	"wmi_exporter/collector"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -63,7 +62,7 @@ type envCollector struct {
 }
 
 var (
-	JsonFormat = true
+	JsonFormat = false
 )
 
 func NewEnvCollector(conf *envCfg) (collector.Collector, error) {
@@ -71,7 +70,7 @@ func NewEnvCollector(conf *envCfg) (collector.Collector, error) {
 		cfg: conf,
 	}
 
-	conf.Tags = append(conf.Tags, cloudcare.TagUploaderUID)
+	//conf.Tags = append(conf.Tags, cloudcare.TagUploaderUID)
 	c.desc = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", conf.SubSystem),
 		conf.Help, conf.Tags, nil)
@@ -120,7 +119,6 @@ func newEnvMetric(ec *envCollector, envVal string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(ec.desc, prometheus.GaugeValue, float64(-1), envVal,
 		// 此处追加两个 tag, 在 queue-manager 那边也会追加, 有重复, 待去掉
 		cfg.Cfg.UploaderUID)
-	return nil
 }
 
 func (ec *envCollector) osqueryUpdate(ch chan<- prometheus.Metric) error {
@@ -136,10 +134,10 @@ func (ec *envCollector) osqueryUpdate(ch chan<- prometheus.Metric) error {
 			return nil
 		}
 
-		uploaduidKey := "ft_" + cloudcare.TagUploaderUID //集群模式下 避免和osquery产生的结果冲突
+		//uploaduidKey := "ft_" + cloudcare.TagUploaderUID //集群模式下 避免和osquery产生的结果冲突
 
 		entry := res.formatJson[0]
-		var keys = []string{uploaduidKey}
+		var keys = []string{}
 		var tuned []string
 		for k := range entry {
 			bforbid := false
@@ -164,7 +162,7 @@ func (ec *envCollector) osqueryUpdate(ch chan<- prometheus.Metric) error {
 		)
 
 		for _, m := range res.formatJson {
-			m[uploaduidKey] = cfg.Cfg.UploaderUID
+			//m[uploaduidKey] = cfg.Cfg.UploaderUID
 			var vals []string
 			for _, k := range keys {
 				for _, tk := range tuned {

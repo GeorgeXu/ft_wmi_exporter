@@ -252,10 +252,11 @@ func initWbem() {
 }
 
 var (
-	metricsPath  = kingpin.Flag("web.telemetry.path", "URL path for surfacing collected metrics.").Default("/metrics").String()
-	envinfoPath  = kingpin.Flag("web.telemetry.envpath", "URL path for surfacing collected envinfo.").Default("/kvs").String()
-	fileInfoPath = kingpin.Flag("web.telemetry-file-info-path", "Path under which to expose file info.").Default("/file_infos").String()
-	metaPath     = kingpin.Flag("web.meta-path", "Path under which to expose meta info.").Default("/meta").String()
+	metricsPath       = kingpin.Flag("web.telemetry.path", "URL path for surfacing collected metrics.").Default("/metrics").String()
+	kvJsonInfoPath    = kingpin.Flag("web.telemetry.envpath", "URL path for surfacing collected envinfo.").Default("/kvs/json").String()
+	kvMetricsInfoPath = kingpin.Flag("web.telemetry.envpath", "URL path for surfacing collected envinfo.").Default("/kvs").String()
+	fileInfoPath      = kingpin.Flag("web.telemetry-file-info-path", "Path under which to expose file info.").Default("/fileinfos").String()
+	metaPath          = kingpin.Flag("web.meta-path", "Path under which to expose meta info.").Default("/meta").String()
 
 	// enabledCollectors = kingpin.Flag(
 	// 	"collectors.enabled",
@@ -266,14 +267,14 @@ var (
 	flagInit      = kingpin.Flag("init", `init config on insyall`).Bool()
 	flagUpdateCfg = kingpin.Flag("update-cfg", `update config from ui`).Bool()
 
-	flagSingleMode = kingpin.Flag("single-mode", "run as single node").Default(fmt.Sprintf("%d", cfg.Cfg.SingleMode)).Int()
+	//flagSingleMode = kingpin.Flag("single-mode", "run as single node").Default(fmt.Sprintf("%d", cfg.Cfg.SingleMode)).Int()
 
 	flagTeamID              = kingpin.Flag("team-id", "User ID").String()
 	flagAK                  = kingpin.Flag("ak", `Access Key`).String()
 	flagSK                  = kingpin.Flag("sk", `Secret Key`).String()
 	flagHostIP              = kingpin.Flag("host", `eg. ip addr`).String()
 	flagPort                = kingpin.Flag("port", `listen port`).Int()
-	flagEnableAllCollectors = kingpin.Flag("enabled", `enabled collectors`).String()
+	flagEnableAllCollectors = kingpin.Flag("enabled", `enabled collectors`).Default("all").String()
 	//flagEnableAll           = kingpin.Flag("enable-all", "enable all collectors").Default(fmt.Sprintf("%d", cfg.Cfg.EnableAll)).Int()
 
 	flagUploaderUID = kingpin.Flag("uploader-uid", "uuid").String()
@@ -282,10 +283,6 @@ var (
 
 	flagRemoteMetricsWritePath = kingpin.Flag("metric-path", ``).Default("v1/write").String()
 	flagRemoteEnvWritePath     = kingpin.Flag("env-path", ``).Default("v1/write/env").String()
-
-	flagScrapeInterval         = kingpin.Flag("scrape-interval", "frequency to upload data").Default(fmt.Sprintf("%d", cfg.Cfg.ScrapeMetricInterval)).Int()
-	flagEnvInfoScrapeInterval  = kingpin.Flag("scrape-env-interval", "frequency to upload env info").Default(fmt.Sprintf("%d", cfg.Cfg.ScrapeEnvInfoInterval)).Int()
-	flagScrapeFileInfoInterval = kingpin.Flag("scrape-file-info-interval", "frequency to upload file info data(ms)").Default(fmt.Sprintf("%d", cfg.Cfg.ScrapeFileInfoInterval)).Int()
 
 	flagVersionInfo = kingpin.Flag("version", "show version info").Bool()
 
@@ -301,40 +298,18 @@ func updateCfg() error {
 		log.Fatalf("[fatal] load config failed: %s", err)
 	}
 
-	if *flagTeamID != "" {
-		cfg.Cfg.TeamID = *flagTeamID
-	}
-	if *flagAK != "" {
-		cfg.Cfg.AK = *flagAK
-	}
-	if *flagSK != "" {
-		cfg.Cfg.SK = cfg.XorEncode(*flagSK)
-		cfg.DecodedSK = *flagSK
-	}
 	if *flagPort != 0 {
 		cfg.Cfg.Port = *flagPort
 	}
-	if *flagHostIP != "" {
-		cfg.Cfg.Host = *flagHostIP
-	}
-	if *flagRemoteHost != "" {
-		cfg.Cfg.RemoteHost = *flagRemoteHost
-	}
-	if *flagEnableAllCollectors != "" {
-		setEnableCollectors(*flagEnableAllCollectors)
 
-		cfg.Cfg.Collectors = make(map[string]bool)
-		for _, v := range collectorItemList {
-			cfg.Cfg.Collectors[v.name] = v.enabled
-		}
-	}
+	// if *flagEnableAllCollectors != "" {
+	// 	setEnableCollectors(*flagEnableAllCollectors)
 
-	if err := cloudcare.CreateIssueSource(false); err != nil {
-		log.Printf("check err: %s", err)
-		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
-		ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
-		os.Exit(1024)
-	}
+	// 	cfg.Cfg.Collectors = make(map[string]bool)
+	// 	for _, v := range collectorItemList {
+	// 		cfg.Cfg.Collectors[v.name] = v.enabled
+	// 	}
+	// }
 
 	err = cfg.DumpConfig()
 	if err != nil {
@@ -346,38 +321,9 @@ func updateCfg() error {
 
 func initCfg() error {
 
-	if *flagTeamID == "" {
-		log.Fatalln("[fatal] invalid team-id")
-	}
-	if *flagAK == "" {
-		log.Fatalln("[fatal] invalid AK")
-	}
-	if *flagSK == "" {
-		log.Fatalln("[fatal] invalid SK")
-	}
-
-	cfg.Cfg.SingleMode = *flagSingleMode
-	if *flagHostIP != "" {
-		cfg.Cfg.Host = *flagHostIP
-	}
-
-	if *flagRemoteHost != "" {
-		cfg.Cfg.RemoteHost = *flagRemoteHost
-	}
-	cfg.Cfg.ScrapeEnvInfoInterval = *flagEnvInfoScrapeInterval
-	cfg.Cfg.ScrapeFileInfoInterval = *flagScrapeFileInfoInterval
-	cfg.Cfg.ScrapeMetricInterval = *flagScrapeInterval
-	//cfg.Cfg.EnableAll = *flagEnableAll
-
-	cfg.Cfg.TeamID = *flagTeamID
-	cfg.Cfg.AK = *flagAK
-	cfg.Cfg.SK = cfg.XorEncode(*flagSK)
-	cfg.DecodedSK = *flagSK
-
 	if *flagPort != 0 {
 		cfg.Cfg.Port = *flagPort
 	}
-	cfg.Cfg.Provider = *flagProvider
 
 	setEnableCollectors(*flagEnableAllCollectors)
 
@@ -386,26 +332,15 @@ func initCfg() error {
 		cfg.Cfg.Collectors[v.name] = v.enabled
 	}
 
-	bcheck := false
-	if *flagUploaderUID != "" {
-		cfg.Cfg.UploaderUID = *flagUploaderUID
-		bcheck = true
-	} else {
-		// 客户端自行生成 ID, 而不是 kodo 下发
-		uid, err := uuid.NewV4()
-		if err != nil {
-			log.Fatal(err)
-		}
+	// 客户端自行生成 ID, 而不是 kodo 下发
+	uid, err := uuid.NewV4()
+	if err == nil {
 		cfg.Cfg.UploaderUID = fmt.Sprintf("uid-%s", uid.String())
 	}
 
-	checkPort(cfg.Cfg.Port)
-
-	if err := cloudcare.CreateIssueSource(bcheck); err != nil {
-		log.Printf("init check err: %s", err)
-		errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
-		ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
-		os.Exit(1024)
+	hostname, err := os.Hostname()
+	if err == nil {
+		cfg.Cfg.GroupName = hostname
 	}
 
 	return cfg.DumpConfig()
@@ -467,17 +402,6 @@ Golang Version: %s
 
 	cfg.DumpConfig()
 
-	checkPort(cfg.Cfg.Port)
-
-	if cfg.Cfg.SingleMode > 0 {
-		if err := cloudcare.CreateIssueSource(false); err != nil {
-			log.Printf("check err: %s", err)
-			errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
-			ioutil.WriteFile(errpath, []byte(err.Error()), 0666)
-			os.Exit(1024)
-		}
-	}
-
 	if *printCollectors {
 		collectorNames := make(sort.StringSlice, 0, len(collector.Factories))
 		for n := range collector.Factories {
@@ -523,12 +447,17 @@ Golang Version: %s
 	envinfo.OSQuerydPath = filepath.Join(filepath.Dir(os.Args[0]), `osqueryd.exe`)
 	envinfo.Init(filepath.Join(filepath.Dir(os.Args[0]), `kv.json`))
 
-	envRegister := prometheus.NewRegistry()
-	envcCollector := envinfo.NewEnvInfoCollector()
-	envRegister.MustRegister(envcCollector)
-
 	http.Handle(*metricsPath, promhttp.Handler())
-	http.Handle(*envinfoPath, promhttp.HandlerFor(envRegister, promhttp.HandlerOpts{}))
+
+	// kvJsonRegister := prometheus.NewRegistry()
+	// kvJsonCollector := envinfo.NewEnvInfoCollector()
+	// kvJsonRegister.MustRegister(kvJsonCollector)
+	// http.Handle(*kvJsonInfoPath, promhttp.HandlerFor(kvJsonRegister, promhttp.HandlerOpts{}))
+
+	kvMetricsRegister := prometheus.NewRegistry()
+	kvMetricsCollector := envinfo.NewEnvInfoCollector()
+	kvMetricsRegister.MustRegister(kvMetricsCollector)
+	http.Handle(*kvMetricsInfoPath, promhttp.HandlerFor(kvMetricsRegister, promhttp.HandlerOpts{}))
 
 	http.HandleFunc(*metaPath, func(w http.ResponseWriter, r *http.Request) {
 		hostName, err := os.Hostname()
@@ -563,49 +492,11 @@ Golang Version: %s
 		http.Redirect(w, r, *metricsPath, http.StatusMovedPermanently)
 	})
 
-	log.Println(fmt.Sprintf("Starting Corsair on %d", cfg.Cfg.Port), version.Info())
+	log.Println(fmt.Sprintf("Starting exporter on %d", cfg.Cfg.Port), version.Info())
 	//log.Infoln("Build context", version.BuildContext())
 
-	if cfg.Cfg.SingleMode == 1 {
-
-		if cfg.Cfg.SingleMode == 1 {
-			// metric 数据收集和上报
-			metricsScrapeUrl := fmt.Sprintf("http://%s:%d%s", cfg.Cfg.BindAddr, cfg.Cfg.Port, *metricsPath)
-			postURLMetric := fmt.Sprintf("%s%s", cfg.Cfg.RemoteHost, "/v1/write")
-
-			log.Printf("[debug] metric url: %s", metricsScrapeUrl)
-
-			if err := cloudcare.Start(postURLMetric, metricsScrapeUrl, cfg.Cfg.ScrapeMetricInterval); err != nil {
-				log.Fatalf("[fatal] %s", err)
-			}
-
-			// env info 收集器
-			envScrapeUrl := fmt.Sprintf("http://%s:%d%s", cfg.Cfg.BindAddr, cfg.Cfg.Port, *envinfoPath)
-			postURLEnv := fmt.Sprintf("%s%s", cfg.Cfg.RemoteHost, "/v1/write/env")
-
-			log.Printf("[debug] env-info url: %s", envScrapeUrl)
-
-			if err := cloudcare.Start(postURLEnv, envScrapeUrl, cfg.Cfg.ScrapeEnvInfoInterval); err != nil {
-				log.Fatalf("[fatal] %s", err)
-			}
-
-			// file info 收集器
-			// fileinfoScrapeUrl := fmt.Sprintf("http://0.0.0.0:%d%s", cfg.Cfg.Port, *fileInfoPath)
-			// postURLFile := fmt.Sprintf("%s%s", cfg.Cfg.RemoteHost, "/v1/write/env")
-
-			// log.Printf("[debug] env-info url: %s", fileinfoScrapeUrl)
-
-			// if err := cloudcare.Start(postURLFile, fileinfoScrapeUrl, cfg.Cfg.ScrapeFileInfoInterval); err != nil {
-			// 	log.Fatalf("[fatal] %s", err)
-			// }
-
-			// TODO: 这些主动上报收集器, 并入集群模式时, 需要设计退出机制
-		}
-
-	}
-
 	go func() {
-		listenAddress := fmt.Sprintf("%s:%d", cfg.Cfg.BindAddr, cfg.Cfg.Port)
+		listenAddress := fmt.Sprintf("0.0.0.0:%d", cfg.Cfg.Port)
 		if err := http.ListenAndServe(listenAddress, nil); err != nil {
 			log.Printf("[fatal] %s", err.Error())
 			errpath := filepath.Join(filepath.Dir(os.Args[0]), "install_error")
@@ -616,7 +507,7 @@ Golang Version: %s
 
 	for {
 		if <-stopCh {
-			log.Println("Shutting down Corsair")
+			log.Println("Shutting down exporter")
 			break
 		}
 	}

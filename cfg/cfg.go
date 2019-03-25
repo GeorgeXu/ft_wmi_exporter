@@ -13,26 +13,10 @@ import (
 )
 
 type Config struct {
-	TeamID      string `yaml:"team_id"`
-	UploaderUID string `yaml:"uploader_uid"`
-	AK          string `yaml:"ak"`
-	SK          string `yaml:"sk"`
-	Port        int    `yaml:"port"`
-	BindAddr    string `yaml:"bind_addr,omitempty"`
-	SingleMode  int    `yaml:"single_mode"`
-	Host        string `yaml:"host"`
-	RemoteHost  string `yaml:"remote_host"`
-	//EnableAll   int    `yaml:"enable_all"`
-	//EnvCfgFile      string `yaml:"env_cfg_file"`
-	//FileInfoCfgFile string `yaml:"fileinfo_cfg_file"`
-	Provider string `yaml:"provider"`
-
-	ScrapeMetricInterval   int `yaml:"scrap_metric_interval"`
-	ScrapeEnvInfoInterval  int `yaml:"scrap_env_info_interval"`
-	ScrapeFileInfoInterval int `yaml:"scrap_file_info_interval"`
-
-	Collectors map[string]bool `yaml:"collectors"`
-	QueueCfg   map[string]int  `yaml:"queue_cfg"`
+	UploaderUID string          `yaml:"uploader_uid"`
+	GroupName   string          `yaml:"group_name"`
+	Port        int             `yaml:"port"`
+	Collectors  map[string]bool `yaml:"collectors"`
 }
 
 type Meta struct {
@@ -44,20 +28,7 @@ type Meta struct {
 
 var (
 	Cfg = Config{
-		QueueCfg: map[string]int{
-			`batch_send_deadline`:  5,
-			`capacity`:             10000,
-			`max_retries`:          3,
-			`max_samples_per_send`: 100,
-		},
-		Host:                   `default`,
-		RemoteHost:             `https://kodo.cloudcare.cn`,
-		SingleMode:             1,
-		Port:                   9100,
-		BindAddr:               "localhost",
-		ScrapeMetricInterval:   60000,
-		ScrapeEnvInfoInterval:  900000,
-		ScrapeFileInfoInterval: 86400000,
+		Port: 9100,
 	}
 
 	DecodedSK = ""
@@ -77,30 +48,6 @@ func LoadConfig() error {
 
 	if err := yaml.Unmarshal(data, &Cfg); err != nil {
 		return err
-	}
-
-	if Cfg.Host == "" {
-		Cfg.Host = "default"
-	}
-
-	if Cfg.SK != "" {
-		DecodedSK = string(xorDecode(Cfg.SK))
-	}
-
-	if Cfg.BindAddr == "" {
-		Cfg.BindAddr = "localhost"
-	}
-
-	if Cfg.ScrapeMetricInterval < 15000 {
-		Cfg.ScrapeMetricInterval = 15000
-	} else if Cfg.ScrapeMetricInterval > 15*60*1000 {
-		Cfg.ScrapeMetricInterval = 15 * 60 * 1000
-	}
-
-	if Cfg.ScrapeEnvInfoInterval < 60*1000 {
-		Cfg.ScrapeEnvInfoInterval = 60 * 1000
-	} else if Cfg.ScrapeEnvInfoInterval > 60*60*1000 {
-		Cfg.ScrapeEnvInfoInterval = 60 * 60 * 1000
 	}
 
 	return nil

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
-	"sync/atomic"
 	"time"
 	"wmi_exporter/cfg"
 
@@ -282,20 +281,21 @@ type shards struct {
 }
 
 func (qm *QueueManager) newShards(numShards int) *shards {
-	queues := make([]chan *model.Sample, numShards)
-	for i := 0; i < numShards; i++ {
-		queues[i] = make(chan *model.Sample, cfg.Cfg.QueueCfg[`capacity`])
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s := &shards{
-		qm:      qm,
-		queues:  queues,
-		done:    make(chan struct{}),
-		running: int32(numShards),
-		ctx:     ctx,
-		cancel:  cancel,
-	}
-	return s
+	// queues := make([]chan *model.Sample, numShards)
+	// for i := 0; i < numShards; i++ {
+	// 	queues[i] = make(chan *model.Sample, cfg.Cfg.QueueCfg[`capacity`])
+	// }
+	// ctx, cancel := context.WithCancel(context.Background())
+	// s := &shards{
+	// 	qm:      qm,
+	// 	queues:  queues,
+	// 	done:    make(chan struct{}),
+	// 	running: int32(numShards),
+	// 	ctx:     ctx,
+	// 	cancel:  cancel,
+	// }
+	// return s
+	return nil
 }
 
 func (s *shards) len() int {
@@ -345,78 +345,78 @@ func addTags(s *model.Sample) {
 }
 
 func (s *shards) runShard(i int) {
-	defer func() {
-		if atomic.AddInt32(&s.running, -1) == 0 {
-			close(s.done)
-		}
-	}()
+	// defer func() {
+	// 	if atomic.AddInt32(&s.running, -1) == 0 {
+	// 		close(s.done)
+	// 	}
+	// }()
 
-	queue := s.queues[i]
+	// queue := s.queues[i]
 
-	// Send batches of at most MaxSamplesPerSend samples to the remote storage.
-	// If we have fewer samples than that, flush them out after a deadline
-	// anyways.
-	pendingSamples := model.Samples{}
+	// // Send batches of at most MaxSamplesPerSend samples to the remote storage.
+	// // If we have fewer samples than that, flush them out after a deadline
+	// // anyways.
+	// pendingSamples := model.Samples{}
 
-	log.Printf("[info] run shard %d...", i)
-	batchSize := cfg.Cfg.QueueCfg[`max_samples_per_send`]
-	deadline := time.Duration(cfg.Cfg.QueueCfg[`batch_send_deadline`]) * time.Second
-	timer := time.NewTimer(time.Duration(deadline))
+	// log.Printf("[info] run shard %d...", i)
+	// batchSize := cfg.Cfg.QueueCfg[`max_samples_per_send`]
+	// deadline := time.Duration(cfg.Cfg.QueueCfg[`batch_send_deadline`]) * time.Second
+	// timer := time.NewTimer(time.Duration(deadline))
 
-	stop := func() {
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
-			}
-		}
-	}
-	defer stop()
+	// stop := func() {
+	// 	if !timer.Stop() {
+	// 		select {
+	// 		case <-timer.C:
+	// 		default:
+	// 		}
+	// 	}
+	// }
+	// defer stop()
 
-	total := int64(0)
+	// total := int64(0)
 
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
+	// for {
+	// 	select {
+	// 	case <-s.ctx.Done():
+	// 		return
 
-		case sample, ok := <-queue:
-			total++
+	// 	case sample, ok := <-queue:
+	// 		total++
 
-			if !ok {
-				if len(pendingSamples) > 0 {
-					log.Printf("[debug] Flushing %d samples to remote storage, total %d", len(pendingSamples), total)
-					s.sendSamples(pendingSamples)
-					log.Printf("[debug] Done flushing.")
-				}
-				return
-			}
+	// 		if !ok {
+	// 			if len(pendingSamples) > 0 {
+	// 				log.Printf("[debug] Flushing %d samples to remote storage, total %d", len(pendingSamples), total)
+	// 				s.sendSamples(pendingSamples)
+	// 				log.Printf("[debug] Done flushing.")
+	// 			}
+	// 			return
+	// 		}
 
-			// queueLength.WithLabelValues(s.qm.queueName).Dec()
-			addTags(sample)
+	// 		// queueLength.WithLabelValues(s.qm.queueName).Dec()
+	// 		addTags(sample)
 
-			pendingSamples = append(pendingSamples, sample)
+	// 		pendingSamples = append(pendingSamples, sample)
 
-			if len(pendingSamples) >= batchSize {
+	// 		if len(pendingSamples) >= batchSize {
 
-				//log.Printf("[debug] total samples: %d", total)
+	// 			//log.Printf("[debug] total samples: %d", total)
 
-				s.sendSamples(pendingSamples[:batchSize])
-				pendingSamples = pendingSamples[batchSize:]
+	// 			s.sendSamples(pendingSamples[:batchSize])
+	// 			pendingSamples = pendingSamples[batchSize:]
 
-				stop()
-				timer.Reset(deadline)
-			}
+	// 			stop()
+	// 			timer.Reset(deadline)
+	// 		}
 
-		case <-timer.C:
-			if len(pendingSamples) > 0 {
-				log.Printf("[debug] send %d samples on timer, total: %d", len(pendingSamples), total)
-				s.sendSamples(pendingSamples)
-				pendingSamples = pendingSamples[:0]
-			}
-			timer.Reset(deadline)
-		}
-	}
+	// 	case <-timer.C:
+	// 		if len(pendingSamples) > 0 {
+	// 			log.Printf("[debug] send %d samples on timer, total: %d", len(pendingSamples), total)
+	// 			s.sendSamples(pendingSamples)
+	// 			pendingSamples = pendingSamples[:0]
+	// 		}
+	// 		timer.Reset(deadline)
+	// 	}
+	// }
 }
 
 func (s *shards) sendSamples(samples model.Samples) {
@@ -432,29 +432,29 @@ func (s *shards) sendSamples(samples model.Samples) {
 // sendSamples to the remote storage with backoff for recoverable errors.
 func (s *shards) sendSamplesWithBackoff(samples model.Samples) {
 	//backoff := s.qm.cfg.MinBackoff
-	req := ToWriteRequest(samples)
+	// req := ToWriteRequest(samples)
 
-	for retries := cfg.Cfg.QueueCfg[`max_retries`]; retries > 0; retries-- {
-		err := s.qm.client.Store(s.ctx, req)
+	// for retries := cfg.Cfg.QueueCfg[`max_retries`]; retries > 0; retries-- {
+	// 	err := s.qm.client.Store(s.ctx, req)
 
-		if err == nil {
-			//level.Info(s.qm.logger).Log("msg", "send samples ok", "sample count", len(samples))
-			return
-		}
+	// 	if err == nil {
+	// 		//level.Info(s.qm.logger).Log("msg", "send samples ok", "sample count", len(samples))
+	// 		return
+	// 	}
 
-		//ds, _ := dumpSamples(samples)
+	// 	//ds, _ := dumpSamples(samples)
 
-		// level.Warn(s.qm.logger).Log("msg", "Error sending samples to remote storage", "err", err)
+	// 	// level.Warn(s.qm.logger).Log("msg", "Error sending samples to remote storage", "err", err)
 
-		// if _, ok := err.(recoverableError); !ok {
-		// 	break
-		// }
+	// 	// if _, ok := err.(recoverableError); !ok {
+	// 	// 	break
+	// 	// }
 
-		// time.Sleep(time.Duration(backoff))
-		// backoff = backoff * 2
-		// if backoff > s.qm.cfg.MaxBackoff {
-		// 	backoff = s.qm.cfg.MaxBackoff
-		// }
-		log.Println("[error] Error sending samples to remote storage samples")
-	}
+	// 	// time.Sleep(time.Duration(backoff))
+	// 	// backoff = backoff * 2
+	// 	// if backoff > s.qm.cfg.MaxBackoff {
+	// 	// 	backoff = s.qm.cfg.MaxBackoff
+	// 	// }
+	// 	log.Println("[error] Error sending samples to remote storage samples")
+	// }
 }
