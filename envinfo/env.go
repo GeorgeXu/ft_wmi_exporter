@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 	"runtime"
-	"wmi_exporter/cfg"
 	"wmi_exporter/collector"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -59,15 +58,14 @@ type envCfgs struct {
 type envCollector struct {
 	desc *prometheus.Desc
 	cfg  *envCfg
+
+	jsonFormat bool
 }
 
-var (
-	JsonFormat = false
-)
-
-func NewEnvCollector(conf *envCfg) (collector.Collector, error) {
+func NewEnvCollector(conf *envCfg, jsonFormat bool) (collector.Collector, error) {
 	c := &envCollector{
-		cfg: conf,
+		cfg:        conf,
+		jsonFormat: jsonFormat,
 	}
 
 	//conf.Tags = append(conf.Tags, cloudcare.TagUploaderUID)
@@ -116,19 +114,17 @@ func (ec *envCollector) Collect(ch chan<- prometheus.Metric) error {
 }
 
 func newEnvMetric(ec *envCollector, envVal string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(ec.desc, prometheus.GaugeValue, float64(-1), envVal,
-		// 此处追加两个 tag, 在 queue-manager 那边也会追加, 有重复, 待去掉
-		cfg.Cfg.UploaderUID)
+	return prometheus.MustNewConstMetric(ec.desc, prometheus.GaugeValue, float64(-1), envVal)
 }
 
 func (ec *envCollector) osqueryUpdate(ch chan<- prometheus.Metric) error {
-	res, err := doQuery(ec.cfg.SQL)
+	res, err := doQuery(ec.cfg.SQL, ec.jsonFormat)
 	if err != nil {
 		return err
 	}
 
 	//集群模式下，兼容promtheous
-	if !JsonFormat {
+	if !ec.jsonFormat {
 		n := len(res.formatJson)
 		if n == 0 {
 			return nil

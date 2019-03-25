@@ -25,7 +25,7 @@ var (
 	//   -S: run as shell mode
 	//   --json: output result in json format
 
-	factories      = make(map[string]func(*envCfg) (collector.Collector, error))
+	factories      = make(map[string]func(*envCfg, bool) (collector.Collector, error))
 	collectorState = make(map[string]bool)
 	factoryArgs    = make(map[string]*envCfg)
 
@@ -43,7 +43,7 @@ var (
 	)
 )
 
-func registerCollector(collector string, isDefaultEnabled bool, factory func(*envCfg) (collector.Collector, error), arg *envCfg) {
+func registerCollector(collector string, isDefaultEnabled bool, factory func(*envCfg, bool) (collector.Collector, error), arg *envCfg) {
 	collectorState[collector] = isDefaultEnabled
 	factories[collector] = factory
 	if arg != nil {
@@ -55,13 +55,13 @@ type EnvInfoCollector struct {
 	collectors map[string]collector.Collector
 }
 
-func NewEnvInfoCollector() *EnvInfoCollector {
+func NewEnvInfoCollector(jsonFormat bool) *EnvInfoCollector {
 
 	collectors := make(map[string]collector.Collector)
 	for k, enable := range collectorState {
 		if enable {
 			if fn, ok := factories[k]; ok {
-				c, err := fn(factoryArgs[k])
+				c, err := fn(factoryArgs[k], jsonFormat)
 				if err == nil {
 					collectors[k] = c
 				}
@@ -124,7 +124,7 @@ type KVUser struct {
 	Username string `json:"username"`
 }
 
-func doQuery(sql string) (*queryResult, error) {
+func doQuery(sql string, jsonFormat bool) (*queryResult, error) {
 	cmd := exec.Command(OSQuerydPath, []string{`-S`, `--json`, sql}...)
 
 	out, err := cmd.Output()
@@ -134,7 +134,7 @@ func doQuery(sql string) (*queryResult, error) {
 
 	var res queryResult
 	//集群模式下
-	if !JsonFormat {
+	if !jsonFormat {
 		err = json.Unmarshal(out, &res.formatJson)
 		if err != nil {
 			return nil, err

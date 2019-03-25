@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -253,8 +252,8 @@ func initWbem() {
 
 var (
 	metricsPath       = kingpin.Flag("web.telemetry.path", "URL path for surfacing collected metrics.").Default("/metrics").String()
-	kvJsonInfoPath    = kingpin.Flag("web.telemetry.envpath", "URL path for surfacing collected envinfo.").Default("/kvs/json").String()
-	kvMetricsInfoPath = kingpin.Flag("web.telemetry.envpath", "URL path for surfacing collected envinfo.").Default("/kvs").String()
+	kvJsonInfoPath    = kingpin.Flag("web.telemetry.kvjsonpath", "URL path for surfacing collected envinfo.").Default("/kvs/json").String()
+	kvMetricsInfoPath = kingpin.Flag("web.telemetry.kvpath", "URL path for surfacing collected envinfo.").Default("/kvs").String()
 	fileInfoPath      = kingpin.Flag("web.telemetry-file-info-path", "Path under which to expose file info.").Default("/fileinfos").String()
 	metaPath          = kingpin.Flag("web.meta-path", "Path under which to expose meta info.").Default("/meta").String()
 
@@ -447,34 +446,34 @@ Golang Version: %s
 	envinfo.OSQuerydPath = filepath.Join(filepath.Dir(os.Args[0]), `osqueryd.exe`)
 	envinfo.Init(filepath.Join(filepath.Dir(os.Args[0]), `kv.json`))
 
-	http.Handle(*metricsPath, promhttp.Handler())
+	kvJsonCollector := envinfo.NewEnvInfoCollector(true)
+	kvJsonRegister := prometheus.NewRegistry()
+	kvJsonRegister.MustRegister(kvJsonCollector)
+	http.Handle(*kvJsonInfoPath, promhttp.HandlerFor(kvJsonRegister, promhttp.HandlerOpts{}))
 
-	// kvJsonRegister := prometheus.NewRegistry()
-	// kvJsonCollector := envinfo.NewEnvInfoCollector()
-	// kvJsonRegister.MustRegister(kvJsonCollector)
-	// http.Handle(*kvJsonInfoPath, promhttp.HandlerFor(kvJsonRegister, promhttp.HandlerOpts{}))
-
+	kvMetricsCollector := envinfo.NewEnvInfoCollector(false)
 	kvMetricsRegister := prometheus.NewRegistry()
-	kvMetricsCollector := envinfo.NewEnvInfoCollector()
 	kvMetricsRegister.MustRegister(kvMetricsCollector)
 	http.Handle(*kvMetricsInfoPath, promhttp.HandlerFor(kvMetricsRegister, promhttp.HandlerOpts{}))
 
-	http.HandleFunc(*metaPath, func(w http.ResponseWriter, r *http.Request) {
-		hostName, err := os.Hostname()
-		if err != nil {
-			//log.Printf("[error] %s, ignored", err.Error())
-		}
-		j, err := json.Marshal(&cfg.Meta{
-			UploaderUID: cfg.Cfg.UploaderUID,
-			HostName:    hostName,
-		})
-		if err != nil {
-			log.Printf("[error] %s, ignored", err.Error())
-			fmt.Fprintf(w, err.Error())
-		} else {
-			fmt.Fprintf(w, string(j))
-		}
-	})
+	http.Handle(*metricsPath, promhttp.Handler())
+
+	// http.HandleFunc(*metaPath, func(w http.ResponseWriter, r *http.Request) {
+	// 	hostName, err := os.Hostname()
+	// 	if err != nil {
+	// 		//log.Printf("[error] %s, ignored", err.Error())
+	// 	}
+	// 	j, err := json.Marshal(&cfg.Meta{
+	// 		UploaderUID: cfg.Cfg.UploaderUID,
+	// 		HostName:    hostName,
+	// 	})
+	// 	if err != nil {
+	// 		log.Printf("[error] %s, ignored", err.Error())
+	// 		fmt.Fprintf(w, err.Error())
+	// 	} else {
+	// 		fmt.Fprintf(w, string(j))
+	// 	}
+	// })
 
 	http.HandleFunc("/health", healthCheck)
 	http.HandleFunc("/collectors", func(w http.ResponseWriter, r *http.Request) {

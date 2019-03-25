@@ -261,7 +261,7 @@
         "sub_system": "programs",
         "enabled": true,
         "platform": "windows",
-        "sql": "select * from programs",
+        "sql": "select * from programs where identifying_number <> '';",
         "type": "osquery"
       },
       {
