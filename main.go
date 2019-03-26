@@ -266,8 +266,6 @@ var (
 	flagInit      = kingpin.Flag("init", `init config on insyall`).Bool()
 	flagUpdateCfg = kingpin.Flag("update-cfg", `update config from ui`).Bool()
 
-	//flagSingleMode = kingpin.Flag("single-mode", "run as single node").Default(fmt.Sprintf("%d", cfg.Cfg.SingleMode)).Int()
-
 	flagTeamID              = kingpin.Flag("team-id", "User ID").String()
 	flagAK                  = kingpin.Flag("ak", `Access Key`).String()
 	flagSK                  = kingpin.Flag("sk", `Secret Key`).String()
