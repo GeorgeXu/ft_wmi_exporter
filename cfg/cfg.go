@@ -32,7 +32,7 @@ var (
 	}
 
 	DecodedSK = ""
-	ProbeName = `probe`
+	ProbeName = `ft_wmi_exporter`
 )
 
 // 导入 @f 中的配置

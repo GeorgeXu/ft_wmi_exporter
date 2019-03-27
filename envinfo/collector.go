@@ -98,11 +98,12 @@ func (ec EnvInfoCollector) Collect(ch chan<- prometheus.Metric) {
 		}(name, c)
 	}
 
+	wg.Wait()
+
 	te := time.Now()
 
 	log.Printf("[info] finish kvs, used: %v", te.Sub(ts))
 
-	wg.Wait()
 }
 
 func execute(name string, c collector.Collector, ch chan<- prometheus.Metric) {
