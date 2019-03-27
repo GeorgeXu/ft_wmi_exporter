@@ -96,6 +96,9 @@ func (coll WmiCollector) Describe(ch chan<- *prometheus.Desc) {
 // prometheus. Collect could be called several times concurrently
 // and thus its run is protected by a single mutex.
 func (coll WmiCollector) Collect(ch chan<- prometheus.Metric) {
+	//ts := time.Now()
+	//log.Println("[info] start wmi collect")
+
 	wg := sync.WaitGroup{}
 	wg.Add(len(coll.collectors))
 	for name, c := range coll.collectors {
@@ -111,6 +114,9 @@ func (coll WmiCollector) Collect(ch chan<- prometheus.Metric) {
 		startTime,
 	)
 	wg.Wait()
+
+	//te := time.Now()
+	//log.Printf("[info] finish wmi collect, used:%v", te.Sub(ts))
 }
 
 func filterAvailableCollectors(collectors string) string {
