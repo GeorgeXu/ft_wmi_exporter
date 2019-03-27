@@ -53,6 +53,7 @@ func registerCollector(collector string, isDefaultEnabled bool, factory func(*en
 
 type EnvInfoCollector struct {
 	collectors map[string]collector.Collector
+	jsonFormat bool
 }
 
 func NewEnvInfoCollector(jsonFormat bool) *EnvInfoCollector {
@@ -71,6 +72,7 @@ func NewEnvInfoCollector(jsonFormat bool) *EnvInfoCollector {
 
 	return &EnvInfoCollector{
 		collectors: collectors,
+		jsonFormat: jsonFormat,
 	}
 }
 
@@ -86,12 +88,19 @@ func (ec EnvInfoCollector) Collect(ch chan<- prometheus.Metric) {
 	wg := sync.WaitGroup{}
 	wg.Add(len(ec.collectors))
 
+	ts := time.Now()
+	log.Printf("[info] start kvs, jsonformat(%v)", ec.jsonFormat)
+
 	for name, c := range ec.collectors {
 		go func(name string, _c collector.Collector) {
 			execute(name, _c, ch)
 			wg.Done()
 		}(name, c)
 	}
+
+	te := time.Now()
+
+	log.Printf("[info] finish kvs, used: %v", te.Sub(ts))
 
 	wg.Wait()
 }
