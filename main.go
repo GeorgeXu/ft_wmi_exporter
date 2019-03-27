@@ -390,12 +390,12 @@ Golang Version: %s
 		log.Fatalf("[error] load config fail: %s", err)
 	}
 
-	if *flagGetDownloadURL {
-		if err := cloudcare.GetNewVersionAddr(); err != nil {
-			log.Printf("get download url error: %s", err.Error())
-		}
-		return
-	}
+	// if *flagGetDownloadURL {
+	// 	if err := cloudcare.GetNewVersionAddr(); err != nil {
+	// 		log.Printf("get download url error: %s", err.Error())
+	// 	}
+	// 	return
+	// }
 
 	cfg.DumpConfig()
 
