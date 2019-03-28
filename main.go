@@ -446,7 +446,6 @@ Golang Version: %s
 	nodeCollector := WmiCollector{collectors: collectors}
 	prometheus.MustRegister(nodeCollector)
 
-	// init envinfo configure
 	envinfo.OSQuerydPath = filepath.Join(filepath.Dir(os.Args[0]), `osqueryd.exe`)
 	envinfo.Init(filepath.Join(filepath.Dir(os.Args[0]), `kv.json`))
 
