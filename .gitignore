@@ -4,3 +4,4 @@ VERSION
 *.un~
 *.msi
 *.wixobj
+sign/
