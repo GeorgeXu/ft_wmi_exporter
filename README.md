@@ -1,101 +1,65 @@
-# WMI exporter
+# `ft_wmi_exporter` 说明
 
-[![Build status](https://ci.appveyor.com/api/projects/status/ljwan71as6pf2joe?svg=true)](https://ci.appveyor.com/project/martinlindhe/wmi-exporter)
+## 简介
 
-Prometheus exporter for Windows machines, using the WMI (Windows Management Instrumentation).
+`ft_wmi_exporter` 是驻云基于开源的 Prometheus [wmi_exporter](https://github.com/martinlindhe/wmi_exporter) 项目扩展，用于支持对 Windows 服务器进行数据收集并上报到 `王教授` 的分析诊断平台进行分析的 exporter 项目。
 
+## 支持操作系统
 
-## Collectors
+| 系统 | 支持的版本 |
+| ----- | -----   |
+| Windows Server | >= 2008 |
 
-Name     | Description | Enabled by default
----------|-------------|--------------------
-[ad](docs/collector.ad.md) | Active Directory Domain Services |
-[cpu](docs/collector.cpu.md) | CPU usage | &#10003;
-[cs](docs/collector.cs.md) | "Computer System" metrics (system properties, num cpus/total memory) | &#10003;
-[dns](docs/collector.dns.md) | DNS Server |
-[hyperv](docs/collector.hyperv.md) | Hyper-V hosts |
-[iis](docs/collector.iis.md) | IIS sites and applications |
-[logical_disk](docs/collector.logical_disk.md) | Logical disks, disk I/O | &#10003;
-[memory](docs/collector.memory.md) | Memory usage metrics |
-[msmq](docs/collector.msmq.md) | MSMQ queues |
-[mssql](docs/collector.mssql.md) | [SQL Server Performance Objects](https://docs.microsoft.com/en-us/sql/relational-databases/performance-monitor/use-sql-server-objects#SQLServerPOs) metrics  |
-[netframework_clrexceptions](docs/collector.netframework_clrexceptions.md) | .NET Framework CLR Exceptions |
-[netframework_clrinterop](docs/collector.netframework_clrinterop.md) | .NET Framework Interop Metrics |
-[netframework_clrjit](docs/collector.netframework_clrjit.md) | .NET Framework JIT metrics |
-[netframework_clrloading](docs/collector.netframework_clrloading.md) | .NET Framework CLR Loading metrics |
-[netframework_clrlocksandthreads](docs/collector.netframework_clrlocksandthreads.md) | .NET Framework locks and metrics threads |
-[netframework_clrmemory](docs/collector.netframework_clrmemory.md) |  .NET Framework Memory metrics |
-[netframework_clrremoting](docs/collector.netframework_clrremoting.md) | .NET Framework Remoting metrics |
-[netframework_clrsecurity](docs/collector.netframework_clrsecurity.md) | .NET Framework Security Check metrics |
-[net](docs/collector.net.md) | Network interface I/O | &#10003;
-[os](docs/collector.os.md) | OS metrics (memory, processes, users) | &#10003;
-[process](docs/collector.process.md) | Per-process metrics |
-[service](docs/collector.service.md) | Service state metrics | &#10003;
-[system](docs/collector.system.md) | System calls | &#10003;
-[tcp](docs/collector.tcp.md) | TCP connections |
-[textfile](docs/collector.textfile.md) | Read prometheus metrics from a text file | &#10003;
-[vmware](docs/collector.vmware.md) | Performance counters installed by the Vmware Guest agent |
+## 安装
 
-See the linked documentation on each collector for more information on reported metrics, configuration settings and usage examples.
+下载 `ft_wmi_exporter` 安装包：
 
-## Installation
-The latest release can be downloaded from the [releases page](https://github.com/martinlindhe/wmi_exporter/releases).
+最新版下载地址：[http://cloudcare-files.oss-cn-hangzhou.aliyuncs.com/ft_wmi_exporter/release/ft_wmi_exporter.exe](http://cloudcare-files.oss-cn-hangzhou.aliyuncs.com/ft_wmi_exporter/release/ft_wmi_exporter.exe)
 
-Each release provides a .msi installer. The installer will setup the WMI Exporter as a Windows service, as well as create an exception in the Windows Firewall.
+下载成功后，上传到需要监控的 Windows 服务器中，点击 ft_wmi_exporter.exe，设置 监听端口，点击 「安装」，等待安装成功，则 `ft_wmi_exporter` 部署成功
 
-If the installer is run without any parameters, the exporter will run with default settings for enabled collectors, ports, etc. The following parameters are available:
+## 配置 Forethought 
 
-Name | Description
------|------------
-`ENABLED_COLLECTORS` | As the `--collectors.enabled` flag, provide a comma-separated list of enabled collectors
-`LISTEN_ADDR` | The IP address to bind to. Defaults to 0.0.0.0
-`LISTEN_PORT` | The port to bind to. Defaults to 9182.
-`METRICS_PATH` | The path at which to serve metrics. Defaults to `/metrics`
-`TEXTFILE_DIR` | As the `--collector.textfile.directory` flag, provide a directory to read text files with metrics from
-`EXTRA_FLAGS` | Allows passing full CLI flags. Defaults to an empty string.
+部署好 `ft_wmi_exporter`后，在 Forethought 的 `Prometheus` 的配置文件中需要配置抓取的 `target`。
 
-Parameters are sent to the installer via `msiexec`. Example invocations:
+**配置抓取时序数据**
 
-```powershell
-msiexec /i <path-to-msi-file> ENABLED_COLLECTORS=os,iis LISTEN_PORT=5000
-```
+- metrics_path：默认 `/metrics`
+- targets：即安装 `ft_wmi_exporter` 服务器的IP地址和监听的端口，需要保证Forethought 的服务器可访问该地址
+- scrape_interval：抓取的频率，推荐设置为 `1m` ，及 1 分钟抓取 1 次
+- labels：如果没有配置 `uploader_uid` 和 `group_name`，抓取的数据默认不会上传到 `王教授` 的分析诊断平台，`uploader_uid` 和 `group_name` 的获取和设置方法 参见 Forethought 的使用文档
+ 
+示例：
 
-Example service collector with a custom query.
-```powershell
-msiexec /i <path-to-msi-file> ENABLED_COLLECTORS=os,service --% EXTRA_FLAGS="--collector.service.services-where ""Name LIKE 'sql%'"""
-```
-
-## Roadmap
-
-See [open issues](https://github.com/martinlindhe/wmi_exporter/issues)
+    - job_name: 'metrics_job'
+      scrape_interval: 1m
+      metrics_path: /metrics
+      static_configs:
+      - targets: ['172.16.0.85:9100']
+      labels:
+        uploader_uid: 'uid-3fb91f37-59af-4d3b-bf66-44426fc4afb3'
+        group_name: 'demogroup'
 
 
-## Usage
 
-    go get -u github.com/golang/dep
-    go get -u github.com/prometheus/promu
-    go get -u github.com/martinlindhe/wmi_exporter
-    cd $env:GOPATH/src/github.com/martinlindhe/wmi_exporter
-    promu build -v .
-    .\wmi_exporter.exe
+**配置抓取kv数据**
 
-The prometheus metrics will be exposed on [localhost:9182](http://localhost:9182)
+- metrics_path：默认 `/kvs/json`
+- targets：即安装 `ft_wmi_exporter` 服务器的IP地址和监听的端口，需要保证Forethought 的服务器可访问该地址
+- scrape_interval：抓取的频率，推荐设置为 `15m` ，及 15 分钟抓取 1 次
+- labels：如果没有配置 `uploader_uid` 和 `group_name`，抓取的数据默认不会上传到 `王教授` 的分析诊断平台，`uploader_uid` 和 `group_name` 的获取和设置方法 参见 Forethought 的使用文档
 
-## Examples
+示例：
 
-### Enable only service collector and specify a custom query
+    - job_name: 'kvs_job'
+    	scrape_interval: 15m
+    	metrics_path: /kvs/json
+    	static_configs:
+    	- targets: ['172.16.0.85:9100']
+      	labels:
+         uploader_uid: 'uid-3fb91f37-59af-4d3b-bf66-44426fc4afb3'
+         group_name: 'demogroup'
+         
+**注意**
 
-    .\wmi_exporter.exe --collectors.enabled "service" --collector.service.services-where "Name='wmi_exporter'"
-
-### Enable only process collector and specify a custom query
-
-    .\wmi_exporter.exe --collectors.enabled "process" --collector.process.processes-where "Name LIKE 'firefox%'"
-
-When there are multiple processes with the same name, WMI represents those after the first instance as `process-name#index`. So to get them all, rather than just the first one, the query needs to be a wildcard search using a `%` character.
-
-Please note that in Windows batch scripts (and when using the `cmd` command prompt), the `%` character is reserved, so it has to be escaped with another `%`. For example, the wildcard syntax for searching for all firefox processes is `firefox%%`.
-
-
-## License
-
-Under [MIT](LICENSE)
+同一个 `ft_wmi_exporter` 抓取 `target` 的 `uploader_uid` 和 `group_name` 必须相同
